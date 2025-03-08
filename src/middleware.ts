@@ -13,6 +13,8 @@ export default clerkMiddleware((auth, req) => {
   // Protect all other routes
   //ignore this comment again git styff
   //ignore this comment again git stufg
+   //ignore this comment again git styff
+
 });
 
 export const config = {
