@@ -1,14 +1,28 @@
 // src/app/dashboard/page.tsx
-'use client'; // Mark this as a Client Component
+'use client';
+
 import { useUser, useClerk } from '@clerk/nextjs';
-import { useState, useEffect } from 'react';
-import { smartMovingService, SmartMovingLead } from '../services/smartMoving';
+import { useEffect, useState } from 'react';
+
+interface SmartMovingLead {
+  id: string;
+  status?: string;     
+  moveType?: string;
+  serviceDate?: string;
+  customerName?: string;
+  branch?: string;
+  opportunityType?: string;
+  pickupAddress?: string;
+  moveSize?: string;
+  leadSource?: string;
+  createdAt?: string;  
+  quoteAmount?: number;    
+}
 
 type OppStatus = 'New' | 'Contacted' | 'Qualified' | 'Lost' | 'Won';
 
-// Calculator types
 type MoveType = 'one-way' | 'round-trip';
-type CalculatorStep = 
+type CalculatorStep =
   | 'move-type'
   | 'addresses'
   | 'loading-labor'
@@ -70,7 +84,6 @@ interface AdjustmentModalProps {
   onSave: (newAdjustments: CalculatorState['adjustments']) => void;
 }
 
-// Common styles
 const commonStyles = {
   input: "mt-1 block w-full border-2 border-red-200 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500 text-gray-900 placeholder-gray-500",
   inputWithPrefix: "mt-1 block w-full pl-7 border-2 border-red-200 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500 text-gray-900 placeholder-gray-500",
@@ -116,91 +129,8 @@ function AdjustmentModal({ isOpen, onClose, adjustments, onSave }: AdjustmentMod
               className={commonStyles.input}
             />
           </div>
-          <div>
-            <label className={commonStyles.label}>Worker Daily Rate ($)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={localAdjustments.workerDailyRate}
-              onChange={(e) => setLocalAdjustments(prev => ({
-                ...prev,
-                workerDailyRate: parseFloat(e.target.value) || 0
-              }))}
-              className={commonStyles.input}
-            />
-          </div>
-          <div>
-            <label className={commonStyles.label}>Hotel Rate per Night ($)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={localAdjustments.hotelRate}
-              onChange={(e) => setLocalAdjustments(prev => ({
-                ...prev,
-                hotelRate: parseFloat(e.target.value) || 0
-              }))}
-              className={commonStyles.input}
-            />
-          </div>
-          <div>
-            <label className={commonStyles.label}>Per Diem Rate ($)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={localAdjustments.perDiemRate}
-              onChange={(e) => setLocalAdjustments(prev => ({
-                ...prev,
-                perDiemRate: parseFloat(e.target.value) || 0
-              }))}
-              className={commonStyles.input}
-            />
-          </div>
-          <div>
-            <label className={commonStyles.label}>Truck Daily Rate ($)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={localAdjustments.truckDailyRate}
-              onChange={(e) => setLocalAdjustments(prev => ({
-                ...prev,
-                truckDailyRate: parseFloat(e.target.value) || 0
-              }))}
-              className={commonStyles.input}
-            />
-          </div>
-          <div>
-            <label className={commonStyles.label}>Truck Mileage Rate ($)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={localAdjustments.truckMileageRate}
-              onChange={(e) => setLocalAdjustments(prev => ({
-                ...prev,
-                truckMileageRate: parseFloat(e.target.value) || 0
-              }))}
-              className={commonStyles.input}
-            />
-          </div>
-          <div>
-            <label className={commonStyles.label}>Flight Ticket Rate ($)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={localAdjustments.flightTicketRate}
-              onChange={(e) => setLocalAdjustments(prev => ({
-                ...prev,
-                flightTicketRate: parseFloat(e.target.value) || 0
-              }))}
-              className={commonStyles.input}
-            />
-          </div>
         </div>
+
         <div className="mt-6 flex justify-end space-x-4">
           <button
             onClick={onClose}
@@ -224,8 +154,7 @@ function AdjustmentModal({ isOpen, onClose, adjustments, onSave }: AdjustmentMod
 }
 
 export default function DashboardPage() {
-  const { user } = useClerk();
-  const { signOut } = useClerk();
+  const { user, signOut } = useClerk();
   const [view, setView] = useState<'split' | 'leads' | 'calculator'>('split');
   const [currentStep, setCurrentStep] = useState<CalculatorStep>('move-type');
   const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
@@ -255,187 +184,56 @@ export default function DashboardPage() {
     tolls: 0,
     adjustments: {
       driverHourlyRate: 40,
-      gasPrice: 3.50,
+      gasPrice: 3.5,
       workerDailyRate: 300,
       hotelRate: 150,
       perDiemRate: 50,
       truckDailyRate: 300,
-      truckMileageRate: 0.30,
+      truckMileageRate: 0.3,
       flightTicketRate: 500,
-    }
+    },
   });
+
+  // The leads array loaded from /services
   const [leads, setLeads] = useState<SmartMovingLead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch leads on component mount
+  // Fetch leads once on mount
   useEffect(() => {
     fetchLeads();
   }, []);
 
-  const fetchLeads = async () => {
+  async function fetchLeads() {
     try {
       setIsLoading(true);
-      const fetchedLeads = await smartMovingService.getLeads();
-      setLeads(fetchedLeads);
+      const res = await fetch('/services');
+      if (!res.ok) {
+        throw new Error(`Failed to fetch leads from /services. Status: ${res.status}`);
+      }
+      const data = await res.json();
+      setLeads(data);
       setError(null);
     } catch (err) {
-      setError('Failed to fetch leads. Please try again later.');
       console.error('Error fetching leads:', err);
+      setError('Failed to fetch leads. Please try again later.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }
 
-  const handleDeleteLead = async (id: string) => {
-    try {
-      await smartMovingService.deleteLead(id);
-      setLeads(prevLeads => prevLeads.filter(lead => lead.id !== id));
-    } catch (err) {
-      console.error('Error deleting lead:', err);
-      // You might want to show an error message to the user here
-    }
-  };
 
-  const handleQuoteApproval = async () => {
+  function handleDeleteLead(_id: string) {
+    console.warn('DELETE not supported by SmartMoving v1');
+  }
+
+  function handleQuoteApproval() {
     const costs = calculateTotalCost();
-    
-    const newLead: Partial<SmartMovingLead> = {
-      status: 'New',
-      moveType: calculatorState.moveType === 'one-way' ? 'One-Way Move' : 'Round-Trip Move',
-      serviceDate: new Date().toISOString().split('T')[0], // Today's date as default
-      customerName: 'New Customer', // This should be collected during the quote process
-      branch: calculatorState.addresses.warehouse.city,
-      opportunityType: 'Moving',
-      pickupAddress: `${calculatorState.addresses.pickup.street}, ${calculatorState.addresses.pickup.city}, ${calculatorState.addresses.pickup.state} ${calculatorState.addresses.pickup.zip}`,
-      moveSize: `${calculatorState.loading.workers} Workers, ${calculatorState.loading.days} Days`,
-      leadSource: 'Quote Calculator',
-      createdAt: new Date().toISOString(),
-      quoteAmount: costs.total
-    };
+    console.log('Quote approved with total cost = ', costs.total);
+  }
 
-    try {
-      const createdLead = await smartMovingService.createLead(newLead);
-      setLeads(prevLeads => [...prevLeads, createdLead]);
 
-      // Reset calculator state
-      setCalculatorState({
-        moveType: null,
-        addresses: {
-          warehouse: { street: '', city: '', state: '', zip: '' },
-          pickup: { street: '', city: '', state: '', zip: '' },
-          delivery: { street: '', city: '', state: '', zip: '' },
-        },
-        distances: {
-          totalMiles: 0,
-          drivingHours: 0,
-          drivingDays: 0,
-        },
-        loading: {
-          workers: 0,
-          days: 0,
-        },
-        needsPacking: false,
-        packingCost: 0,
-        truckRental: {
-          cost: 0,
-          days: 0,
-        },
-        returnFlights: 0,
-        tolls: 0,
-        adjustments: {
-          driverHourlyRate: 40,
-          gasPrice: 3.50,
-          workerDailyRate: 300,
-          hotelRate: 150,
-          perDiemRate: 50,
-          truckDailyRate: 300,
-          truckMileageRate: 0.30,
-          flightTicketRate: 500,
-        }
-      });
-
-      setCurrentStep('move-type');
-      setView('leads'); // Switch to leads view after approval
-    } catch (err) {
-      console.error('Error creating lead:', err);
-      // You might want to show an error message to the user here
-    }
-  };
-
-  // Sample leads data with new structure
-  const sampleLeads = [
-    {
-      id: 1,
-      oppStatus: 'New' as OppStatus,
-      type: 'Residential',
-      serviceDate: '2024-04-01',
-      name: 'John Doe',
-      branch: 'North Dallas',
-      opportunityType: 'Moving',
-      address: '1234 Main St, Dallas, TX 75001',
-      moveSize: '2 Bedroom',
-      source: 'Website',
-      age: '2 days'
-    },
-    {
-      id: 2,
-      oppStatus: 'Contacted' as OppStatus,
-      type: 'Commercial',
-      serviceDate: '2024-04-15',
-      name: 'Jane Smith',
-      branch: 'South Austin',
-      opportunityType: 'Storage',
-      address: '5678 Business Ave, Austin, TX 78701',
-      moveSize: 'Office (2000 sqft)',
-      source: 'Referral',
-      age: '1 day'
-    },
-    {
-      id: 3,
-      oppStatus: 'Qualified' as OppStatus,
-      type: 'Residential',
-      serviceDate: '2024-04-10',
-      name: 'Mike Johnson',
-      branch: 'West Houston',
-      opportunityType: 'Moving',
-      address: '910 Oak Lane, Houston, TX 77001',
-      moveSize: '3 Bedroom',
-      source: 'Google Ads',
-      age: '5 days'
-    },
-  ];
-
-  const ViewToggle = ({ currentView, viewType, label }: { currentView: string, viewType: 'split' | 'leads' | 'calculator', label: string }) => (
-    <button
-      onClick={() => setView(viewType)}
-      className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-        currentView === viewType
-          ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white shadow-md'
-          : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-      }`}
-    >
-      {label}
-    </button>
-  );
-
-  // Function to render status badge with appropriate color
-  const StatusBadge = ({ status }: { status: OppStatus }) => {
-    const colors: Record<OppStatus, string> = {
-      'New': 'bg-green-100 text-green-800',
-      'Contacted': 'bg-blue-100 text-blue-800',
-      'Qualified': 'bg-yellow-100 text-yellow-800',
-      'Lost': 'bg-red-100 text-red-800',
-      'Won': 'bg-purple-100 text-purple-800'
-    };
-    return (
-      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${colors[status]}`}>
-        {status}
-      </span>
-    );
-  };
-
-  const calculateTotalCost = () => {
+  function calculateTotalCost() {
     const {
       moveType,
       distances,
@@ -444,38 +242,40 @@ export default function DashboardPage() {
       truckRental,
       returnFlights,
       tolls,
-      adjustments
+      adjustments,
     } = calculatorState;
 
-    // Driver pay
+    // Example cost logic from your original code
     const driverRate = moveType === 'one-way' ? adjustments.driverHourlyRate : 50;
     const totalDrivingHours = distances.drivingHours + Math.floor(distances.drivingHours / 6) * 2;
     const driverPay = totalDrivingHours * driverRate;
-
-    // Fuel cost
     const gallonsNeeded = distances.totalMiles / 5;
     const fuelCost = gallonsNeeded * adjustments.gasPrice;
-
-    // Loading labor
     const laborCost = loading.workers * loading.days * adjustments.workerDailyRate;
-
-    // Hotel and per diem
     const hotelCost = distances.drivingDays * adjustments.hotelRate;
     const perDiemCost = distances.drivingDays * adjustments.perDiemRate * (moveType === 'one-way' ? 1 : 2);
 
-    // Truck costs
     let truckCost = 0;
     if (moveType === 'round-trip') {
-      truckCost = (truckRental.days * adjustments.truckDailyRate) + (distances.totalMiles * adjustments.truckMileageRate);
+      truckCost =
+        truckRental.days * adjustments.truckDailyRate + distances.totalMiles * adjustments.truckMileageRate;
     } else {
       truckCost = truckRental.cost;
     }
 
-    // Flight costs
     const flightCost = moveType === 'one-way' ? returnFlights * adjustments.flightTicketRate : 0;
-
-    // Toll costs
     const tollCost = tolls * 100 * (moveType === 'round-trip' ? 2 : 1);
+
+    const total =
+      driverPay +
+      fuelCost +
+      laborCost +
+      hotelCost +
+      perDiemCost +
+      truckCost +
+      flightCost +
+      tollCost +
+      packingCost;
 
     return {
       driverPay,
@@ -487,11 +287,11 @@ export default function DashboardPage() {
       flightCost,
       tollCost,
       packingCost,
-      total: driverPay + fuelCost + laborCost + hotelCost + perDiemCost + truckCost + flightCost + tollCost + packingCost
+      total,
     };
-  };
+  }
 
-  const renderCalculatorStep = () => {
+  function renderCalculatorStep() {
     switch (currentStep) {
       case 'move-type':
         return (
@@ -932,13 +732,13 @@ export default function DashboardPage() {
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
-      {/* Top Navigation Bar */}
+      {/* Top Nav */}
       <nav className="bg-white shadow-sm">
         <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
               <h1 className="text-2xl font-bold bg-gradient-to-r from-red-600 to-pink-600 bg-clip-text text-transparent">
-                PoinDex Quote Calculator 
+                PoinDex Quote Calculator
               </h1>
             </div>
             <div className="flex items-center space-x-4">
@@ -963,19 +763,46 @@ export default function DashboardPage() {
       <div className="bg-gray-100 border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="py-3 flex justify-center space-x-4">
-            <ViewToggle currentView={view} viewType="split" label="Split View" />
-            <ViewToggle currentView={view} viewType="leads" label="Full Leads" />
-            <ViewToggle currentView={view} viewType="calculator" label="Full Calculator" />
+            <button
+              onClick={() => setView('split')}
+              className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                view === 'split'
+                  ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white shadow-md'
+                  : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+              }`}
+            >
+              Split View
+            </button>
+            <button
+              onClick={() => setView('leads')}
+              className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                view === 'leads'
+                  ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white shadow-md'
+                  : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+              }`}
+            >
+              Full Leads
+            </button>
+            <button
+              onClick={() => setView('calculator')}
+              className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                view === 'calculator'
+                  ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white shadow-md'
+                  : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+              }`}
+            >
+              Full Calculator
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 overflow-hidden">
-        <div className={`h-full ${view === 'split' ? 'grid grid-cols-2 gap-6 p-6' : ''}`}>
+      {/* Main Content */}
+      <div className="flex-1 overflow-auto">
+        <div className={`${view === 'split' ? 'grid grid-cols-2 gap-6 p-6 h-full' : 'h-full'}`}>
           {/* Leads Table */}
           {(view === 'split' || view === 'leads') && (
-            <div className={`flex flex-col bg-white shadow-sm ${view === 'split' ? 'rounded-lg' : ''}`}>
+            <div className="flex flex-col bg-white shadow-sm rounded-lg">
               <div className="p-6 border-b border-gray-200">
                 <div className="flex justify-between items-center">
                   <h2 className="text-2xl font-semibold text-gray-800">Leads</h2>
@@ -997,56 +824,78 @@ export default function DashboardPage() {
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50 sticky top-0">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Opp Status</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service Date</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Opportunity Type</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Move Size</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Age</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Move Type
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Service Date
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Name
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Branch
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Opportunity Type
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Address
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Move Size
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Source
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Created
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {leads.map((lead) => (
                         <tr key={lead.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <StatusBadge status={lead.status as OppStatus} />
+                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                              {lead.status || 'N/A'}
+                            </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{lead.moveType}</div>
+                            {lead.moveType || 'N/A'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{lead.serviceDate}</div>
+                            {lead.serviceDate || 'N/A'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
+                            {lead.customerName || 'N/A'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">{lead.customerName}</div>
+                            {lead.branch || 'N/A'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{lead.branch}</div>
+                            {lead.opportunityType || 'N/A'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{lead.opportunityType}</div>
+                            {lead.pickupAddress || 'N/A'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{lead.pickupAddress}</div>
+                            {lead.moveSize || 'N/A'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{lead.moveSize}</div>
+                            {lead.leadSource || 'N/A'}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{lead.leadSource}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-500">
-                              {new Date(lead.createdAt).toLocaleDateString()}
-                            </div>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : 'N/A'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <button 
+                            <button
                               onClick={() => handleDeleteLead(lead.id)}
                               className="text-red-600 hover:text-red-900"
                             >
@@ -1064,7 +913,7 @@ export default function DashboardPage() {
 
           {/* Quote Calculator */}
           {(view === 'split' || view === 'calculator') && (
-            <div className={`flex flex-col bg-white shadow-sm ${view === 'split' ? 'rounded-lg' : ''}`}>
+            <div className="flex flex-col bg-white shadow-sm rounded-lg">
               <div className="p-6 border-b border-gray-200">
                 <h2 className="text-2xl font-semibold text-gray-800">Quote Calculator</h2>
               </div>

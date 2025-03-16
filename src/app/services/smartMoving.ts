@@ -1,35 +1,37 @@
 import axios from 'axios';
 
-const API_KEY = '1d037767eef5447cb2a7557463c55d41';
-const PROVIDER_KEY = 'e62a4ec8-6b97-41c3-a4cf-af39015b0c3c';
-const BASE_URL = 'https://api.smartmoving.com/api/leads/from-provider/v2';
+/* 1) CONFIG */
+const SUBSCRIPTION_KEY = '1d037767eef5447cb2a7557463c55d41'; 
+const BASE_URL = 'https://api-public.smartmoving.com/v1/api';
 
+/* 2) AXIOS CLIENT */
 const smartMovingApi = axios.create({
   baseURL: BASE_URL,
   headers: {
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'x-api-key': SUBSCRIPTION_KEY,
   },
-  params: {
-    providerKey: PROVIDER_KEY
-  }
 });
 
-interface SmartMovingApiResponse {
-  id: string;
-  [key: string]: any;
+/* 3) INTERFACES */
+interface PageViewModel<T> {
+  pageNumber: number;
+  pageSize: number;
+  lastPage: boolean;
+  totalPages: number;
+  totalResults: number;
+  totalThisPage: number;
+  pageResults: T[];
 }
 
-export interface SmartMovingLead {
-  id?: string;
-  firstName?: string;
-  lastName?: string;
-  fullName?: string;
+interface LeadViewModel {
+  id: string;
+  customerName?: string;
+  emailAddress?: string;
   phoneNumber?: string;
-  extension?: string;
-  userOptIn?: boolean;
-  email?: string;
-  moveDate?: string;
-  leadCost?: number;
+  createdAtUtc?: string;
+  status?: number;
+  branchName?: string;
   originStreet?: string;
   originCity?: string;
   originState?: string;
@@ -38,102 +40,76 @@ export interface SmartMovingLead {
   destinationCity?: string;
   destinationState?: string;
   destinationZip?: string;
-  bedrooms?: string;
-  moveSize?: string;
-  notes?: string;
   referralSource?: string;
-  branchId?: string;
-  serviceType?: 'Moving' | 'Packing' | 'MovingAndPacking' | 'LoadOnly' | 'UnloadOnly' | 'Commercial' | 'StorageInBound' | 'StorageOutBound' | 'InnerHouse' | 'JunkRemoval' | 'LaborOnly';
-  // For our UI tracking
-  status?: string;
-  moveType?: string;
-  customerName?: string;
-  branch?: string;
-  opportunityType?: string;
-  pickupAddress?: string;
-  leadSource?: string;
-  createdAt?: string;
-  quoteAmount?: number;
+  moveSizeName?: string;
 }
 
+/* 4) SHAPE FOR YOUR UI */
+export interface SmartMovingLead {
+  id: string;
+  customerName?: string;
+  email?: string;
+  phone?: string;
+  createdAt?: string;
+  status?: string;
+  branch?: string;
+  originStreet?: string;
+  originCity?: string;
+  originState?: string;
+  originZip?: string;
+  destinationStreet?: string;
+  destinationCity?: string;
+  destinationState?: string;
+  destinationZip?: string;
+  leadSource?: string;
+  moveSize?: string;
+}
+
+/* 5) SERVICE */
 export const smartMovingService = {
-  async getLeads(): Promise<SmartMovingLead[]> {
+  async getLeads(page = 1, pageSize = 25): Promise<SmartMovingLead[]> {
     try {
-      // Note: The API doesn't seem to have a GET endpoint in the docs
-      // We'll store leads locally for now
-      return [];
+      const response = await smartMovingApi.get<PageViewModel<LeadViewModel>>('/leads', {
+        params: { Page: page, PageSize: pageSize },
+      });
+
+      return response.data.pageResults.map((raw) => ({
+        id: raw.id,
+        customerName: raw.customerName,
+        email: raw.emailAddress,
+        phone: raw.phoneNumber,
+        createdAt: raw.createdAtUtc,
+        status: mapOpportunityStatus(raw.status),
+        branch: raw.branchName,
+        originStreet: raw.originStreet,
+        originCity: raw.originCity,
+        originState: raw.originState,
+        originZip: raw.originZip,
+        destinationStreet: raw.destinationStreet,
+        destinationCity: raw.destinationCity,
+        destinationState: raw.destinationState,
+        destinationZip: raw.destinationZip,
+        leadSource: raw.referralSource,
+        moveSize: raw.moveSizeName,
+      }));
     } catch (error) {
-      console.error('Error fetching leads:', error);
+      console.error('Error fetching leads from SmartMoving:', error);
       throw error;
     }
   },
+};
 
-  async createLead(leadData: Partial<SmartMovingLead>): Promise<SmartMovingLead> {
-    try {
-      // Format the data according to SmartMoving's requirements
-      const formattedData = {
-        firstName: leadData.firstName || leadData.customerName?.split(' ')[0] || 'New',
-        lastName: leadData.lastName || leadData.customerName?.split(' ')[1] || 'Customer',
-        phoneNumber: leadData.phoneNumber || '',
-        email: leadData.email || '',
-        moveDate: leadData.moveDate ? new Date(leadData.moveDate).toLocaleDateString('en-US') : new Date().toLocaleDateString('en-US'),
-        leadCost: leadData.quoteAmount || 0,
-        originStreet: leadData.originStreet || leadData.pickupAddress?.split(',')[0] || '',
-        originCity: leadData.originCity || leadData.branch || '',
-        originState: leadData.originState || '',
-        originZip: leadData.originZip || '',
-        destinationStreet: leadData.destinationStreet || '',
-        destinationCity: leadData.destinationCity || '',
-        destinationState: leadData.destinationState || '',
-        destinationZip: leadData.destinationZip || '',
-        moveSize: leadData.moveSize || '',
-        notes: `${leadData.notes || ''}\nQuote Amount: $${leadData.quoteAmount || 0}`,
-        referralSource: leadData.referralSource || 'Quote Calculator',
-        serviceType: leadData.serviceType || 'Moving'
-      };
-
-      const response = await smartMovingApi.post<SmartMovingApiResponse>('', formattedData);
-      
-      // Store the lead locally since we don't have a GET endpoint
-      const createdLead: SmartMovingLead = {
-        ...leadData,
-        id: response.data.id,
-        firstName: formattedData.firstName,
-        lastName: formattedData.lastName,
-        createdAt: new Date().toISOString()
-      };
-
-      return createdLead;
-    } catch (error) {
-      console.error('Error creating lead:', error);
-      throw error;
-    }
-  },
-
-  async updateLead(id: string, leadData: Partial<SmartMovingLead>): Promise<SmartMovingLead> {
-    try {
-      // The API doesn't seem to have an update endpoint in the docs
-      // We'll just return the updated data
-      const updatedLead: SmartMovingLead = {
-        ...leadData,
-        id,
-        createdAt: new Date().toISOString()
-      };
-      return updatedLead;
-    } catch (error) {
-      console.error('Error updating lead:', error);
-      throw error;
-    }
-  },
-
-  async deleteLead(id: string): Promise<void> {
-    try {
-      // The API doesn't seem to have a delete endpoint in the docs
-      // We'll just handle this client-side
-      return;
-    } catch (error) {
-      console.error('Error deleting lead:', error);
-      throw error;
-    }
+function mapOpportunityStatus(code?: number): string {
+  switch (code) {
+    case 0: return 'NewLead';
+    case 1: return 'LeadInProgress';
+    case 3: return 'Opportunity';
+    case 4: return 'Booked';
+    case 10: return 'Completed';
+    case 11: return 'Closed';
+    case 20: return 'Cancelled';
+    case 30: return 'Lost';
+    case 50: return 'BadLead';
+    default: return 'Unknown';
   }
-}; 
+}
