@@ -1,7 +1,8 @@
 // src/app/dashboard/page.tsx
 'use client'; // Mark this as a Client Component
 import { useUser, useClerk } from '@clerk/nextjs';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { smartMovingService, SmartMovingLead } from '../services/smartMoving';
 
 type OppStatus = 'New' | 'Contacted' | 'Qualified' | 'Lost' | 'Won';
 
@@ -263,9 +264,107 @@ export default function DashboardPage() {
       flightTicketRate: 500,
     }
   });
+  const [leads, setLeads] = useState<SmartMovingLead[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch leads on component mount
+  useEffect(() => {
+    fetchLeads();
+  }, []);
+
+  const fetchLeads = async () => {
+    try {
+      setIsLoading(true);
+      const fetchedLeads = await smartMovingService.getLeads();
+      setLeads(fetchedLeads);
+      setError(null);
+    } catch (err) {
+      setError('Failed to fetch leads. Please try again later.');
+      console.error('Error fetching leads:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteLead = async (id: string) => {
+    try {
+      await smartMovingService.deleteLead(id);
+      setLeads(prevLeads => prevLeads.filter(lead => lead.id !== id));
+    } catch (err) {
+      console.error('Error deleting lead:', err);
+      // You might want to show an error message to the user here
+    }
+  };
+
+  const handleQuoteApproval = async () => {
+    const costs = calculateTotalCost();
+    
+    const newLead: Partial<SmartMovingLead> = {
+      status: 'New',
+      moveType: calculatorState.moveType === 'one-way' ? 'One-Way Move' : 'Round-Trip Move',
+      serviceDate: new Date().toISOString().split('T')[0], // Today's date as default
+      customerName: 'New Customer', // This should be collected during the quote process
+      branch: calculatorState.addresses.warehouse.city,
+      opportunityType: 'Moving',
+      pickupAddress: `${calculatorState.addresses.pickup.street}, ${calculatorState.addresses.pickup.city}, ${calculatorState.addresses.pickup.state} ${calculatorState.addresses.pickup.zip}`,
+      moveSize: `${calculatorState.loading.workers} Workers, ${calculatorState.loading.days} Days`,
+      leadSource: 'Quote Calculator',
+      createdAt: new Date().toISOString(),
+      quoteAmount: costs.total
+    };
+
+    try {
+      const createdLead = await smartMovingService.createLead(newLead);
+      setLeads(prevLeads => [...prevLeads, createdLead]);
+
+      // Reset calculator state
+      setCalculatorState({
+        moveType: null,
+        addresses: {
+          warehouse: { street: '', city: '', state: '', zip: '' },
+          pickup: { street: '', city: '', state: '', zip: '' },
+          delivery: { street: '', city: '', state: '', zip: '' },
+        },
+        distances: {
+          totalMiles: 0,
+          drivingHours: 0,
+          drivingDays: 0,
+        },
+        loading: {
+          workers: 0,
+          days: 0,
+        },
+        needsPacking: false,
+        packingCost: 0,
+        truckRental: {
+          cost: 0,
+          days: 0,
+        },
+        returnFlights: 0,
+        tolls: 0,
+        adjustments: {
+          driverHourlyRate: 40,
+          gasPrice: 3.50,
+          workerDailyRate: 300,
+          hotelRate: 150,
+          perDiemRate: 50,
+          truckDailyRate: 300,
+          truckMileageRate: 0.30,
+          flightTicketRate: 500,
+        }
+      });
+
+      setCurrentStep('move-type');
+      setView('leads'); // Switch to leads view after approval
+    } catch (err) {
+      console.error('Error creating lead:', err);
+      // You might want to show an error message to the user here
+    }
+  };
 
   // Sample leads data with new structure
-  const leads = [
+  const sampleLeads = [
     {
       id: 1,
       oppStatus: 'New' as OppStatus,
@@ -831,67 +930,6 @@ export default function DashboardPage() {
     }
   };
 
-  const handleQuoteApproval = () => {
-    const costs = calculateTotalCost();
-    const newLead = {
-      id: leads.length + 1,
-      oppStatus: 'New' as OppStatus,
-      type: calculatorState.moveType === 'one-way' ? 'One-Way Move' : 'Round-Trip Move',
-      serviceDate: 'TBD', // This should be collected during the quote process
-      name: 'New Customer', // This should be collected during the quote process
-      branch: calculatorState.addresses.warehouse.city,
-      opportunityType: 'Moving',
-      address: `${calculatorState.addresses.pickup.street}, ${calculatorState.addresses.pickup.city}, ${calculatorState.addresses.pickup.state} ${calculatorState.addresses.pickup.zip}`,
-      moveSize: `${calculatorState.loading.workers} Workers, ${calculatorState.loading.days} Days`,
-      source: 'Quote Calculator',
-      age: '0 days',
-      quoteAmount: costs.total
-    };
-
-    // Here you would typically make an API call to save the lead
-    console.log('New lead created:', newLead);
-
-    // Reset calculator state
-    setCalculatorState({
-      moveType: null,
-      addresses: {
-        warehouse: { street: '', city: '', state: '', zip: '' },
-        pickup: { street: '', city: '', state: '', zip: '' },
-        delivery: { street: '', city: '', state: '', zip: '' },
-      },
-      distances: {
-        totalMiles: 0,
-        drivingHours: 0,
-        drivingDays: 0,
-      },
-      loading: {
-        workers: 0,
-        days: 0,
-      },
-      needsPacking: false,
-      packingCost: 0,
-      truckRental: {
-        cost: 0,
-        days: 0,
-      },
-      returnFlights: 0,
-      tolls: 0,
-      adjustments: {
-        driverHourlyRate: 40,
-        gasPrice: 3.50,
-        workerDailyRate: 300,
-        hotelRate: 150,
-        perDiemRate: 50,
-        truckDailyRate: 300,
-        truckMileageRate: 0.30,
-        flightTicketRate: 500,
-      }
-    });
-
-    setCurrentStep('move-type');
-    setView('leads'); // Switch to leads view after approval
-  };
-
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       {/* Top Navigation Bar */}
@@ -900,7 +938,7 @@ export default function DashboardPage() {
           <div className="flex justify-between h-16">
             <div className="flex items-center">
               <h1 className="text-2xl font-bold bg-gradient-to-r from-red-600 to-pink-600 bg-clip-text text-transparent">
-                PointDex
+                PoinDex Quote Calculator 
               </h1>
             </div>
             <div className="flex items-center space-x-4">
@@ -947,63 +985,79 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="flex-1 overflow-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50 sticky top-0">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Opp Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Opportunity Type</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Move Size</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Age</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {leads.map((lead) => (
-                      <tr key={lead.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <StatusBadge status={lead.oppStatus} />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{lead.type}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{lead.serviceDate}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{lead.name}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{lead.branch}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{lead.opportunityType}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{lead.address}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{lead.moveSize}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{lead.source}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500">{lead.age}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button className="text-red-600 hover:text-red-900 mr-3">Edit</button>
-                          <button className="text-gray-600 hover:text-gray-900">Delete</button>
-                        </td>
+                {isLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
+                  </div>
+                ) : error ? (
+                  <div className="flex items-center justify-center h-full text-red-600">
+                    {error}
+                  </div>
+                ) : (
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Opp Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service Date</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Opportunity Type</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Move Size</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Age</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {leads.map((lead) => (
+                        <tr key={lead.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <StatusBadge status={lead.status as OppStatus} />
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">{lead.moveType}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">{lead.serviceDate}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">{lead.customerName}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">{lead.branch}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">{lead.opportunityType}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">{lead.pickupAddress}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">{lead.moveSize}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">{lead.leadSource}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-500">
+                              {new Date(lead.createdAt).toLocaleDateString()}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button 
+                              onClick={() => handleDeleteLead(lead.id)}
+                              className="text-red-600 hover:text-red-900"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </div>
           )}
