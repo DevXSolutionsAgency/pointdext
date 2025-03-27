@@ -1,7 +1,9 @@
+// services/smartmoving.ts
+
 import axios from 'axios';
 
 /* 1) CONFIG */
-const SUBSCRIPTION_KEY = '1d037767eef5447cb2a7557463c55d41'; 
+const SUBSCRIPTION_KEY = '1d037767eef5447cb2a7557463c55d41';
 const BASE_URL = 'https://api-public.smartmoving.com/v1/api';
 
 /* 2) AXIOS CLIENT */
@@ -32,6 +34,12 @@ interface LeadViewModel {
   createdAtUtc?: string;
   status?: number;
   branchName?: string;
+
+  // The single-field addresses from the API
+  originAddressFull?: string;
+  destinationAddressFull?: string;
+
+  // The older multi-field addresses:
   originStreet?: string;
   originCity?: string;
   originState?: string;
@@ -40,6 +48,7 @@ interface LeadViewModel {
   destinationCity?: string;
   destinationState?: string;
   destinationZip?: string;
+
   referralSource?: string;
   moveSizeName?: string;
 }
@@ -53,6 +62,12 @@ export interface SmartMovingLead {
   createdAt?: string;
   status?: string;
   branch?: string;
+
+  // single-field addresses
+  originAddressFull?: string;
+  destinationAddressFull?: string;
+
+  // older multi-field
   originStreet?: string;
   originCity?: string;
   originState?: string;
@@ -81,6 +96,12 @@ export const smartMovingService = {
         createdAt: raw.createdAtUtc,
         status: mapOpportunityStatus(raw.status),
         branch: raw.branchName,
+
+        // Single-field addresses from the API
+        originAddressFull: raw.originAddressFull,
+        destinationAddressFull: raw.destinationAddressFull,
+
+        // Multi-field addresses
         originStreet: raw.originStreet,
         originCity: raw.originCity,
         originState: raw.originState,
@@ -89,6 +110,7 @@ export const smartMovingService = {
         destinationCity: raw.destinationCity,
         destinationState: raw.destinationState,
         destinationZip: raw.destinationZip,
+
         leadSource: raw.referralSource,
         moveSize: raw.moveSizeName,
       }));
