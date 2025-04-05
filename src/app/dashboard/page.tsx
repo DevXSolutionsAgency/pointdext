@@ -89,10 +89,10 @@ export default function DashboardPage() {
 
   // 4) Import leads -> set pickup/delivery, switch to calculator
   function handleImportLead(lead: SmartMovingLead) {
-    let pickupAddr = lead.originAddressFull?.trim()
-      || `${lead.originStreet||''} ${lead.originCity||''}`.trim();
-    let deliveryAddr = lead.destinationAddressFull?.trim()
-      || `${lead.destinationStreet||''} ${lead.destinationCity||''}`.trim();
+    const pickupAddr = lead.originAddressFull?.trim()
+      || `${lead.originStreet || ''} ${lead.originCity || ''}`.trim();
+    const deliveryAddr = lead.destinationAddressFull?.trim()
+      || `${lead.destinationStreet || ''} ${lead.destinationCity || ''}`.trim();
 
     setPickup(pickupAddr);
     setDelivery(deliveryAddr);
@@ -144,13 +144,13 @@ export default function DashboardPage() {
                     {leads.map(lead => (
                       <tr key={lead.id} className="hover:bg-gray-50">
                         <td className="px-3 py-2 border text-black">
-                          {lead.customerName||'N/A'}
+                          {lead.customerName || 'N/A'}
                         </td>
                         <td className="px-3 py-2 border text-black">
-                          {lead.originAddressFull||'N/A'}
+                          {lead.originAddressFull || 'N/A'}
                         </td>
                         <td className="px-3 py-2 border text-black">
-                          {lead.destinationAddressFull||'N/A'}
+                          {lead.destinationAddressFull || 'N/A'}
                         </td>
                         <td className="px-3 py-2 border text-black">
                           <button
@@ -396,9 +396,15 @@ function SinglePageCalculator(props: {
         throw new Error(data.error || 'Failed to calculate route');
       }
 
-      const { distance, duration, nearestAirport: airportName } = data.data;
+      // We expect { distance, duration, tolls, nearestAirport } in data.data
+      const { distance, duration, tolls, nearestAirport: airportName } = data.data;
+
+      // Set the distance, drive hours
       setTotalMiles(distance);
       setGpsDriveHours(duration / 60);
+
+      // Auto-fill # Tolls from the server
+      setNumTolls(tolls);
 
       // If one-way, get nearest airport from the response
       if (moveType === 'one-way' && airportName) {
@@ -407,7 +413,9 @@ function SinglePageCalculator(props: {
         setNearestAirport('');
       }
 
-      alert(`Route = ${distance.toFixed(1)} miles, ~${(duration/60).toFixed(1)} hours`);
+      alert(
+        `Route = ${distance.toFixed(1)} miles, ~${(duration / 60).toFixed(1)} hours\nTolls: ${tolls}`
+      );
     } catch (err: any) {
       alert(`Error calculating route: ${err.message}`);
       console.error(err);
@@ -416,17 +424,17 @@ function SinglePageCalculator(props: {
 
   // Basic cost logic
   function calculateCost() {
-    // extra hours = +2 for every 6 hours of GPS time
+    // +2 hours for every 6 hours of GPS time
     const extraHours = Math.floor(gpsDriveHours / 6) * 2;
     const adjustedDriveHours = gpsDriveHours + extraHours;
     const drivingDays = Math.ceil(gpsDriveHours / 9);
 
-    const driverRate = (moveType === 'one-way')
+    const driverRate = moveType === 'one-way'
       ? oneWayDriverHourly
       : roundTripDriverHourly;
 
     const driverPay = adjustedDriveHours * driverRate;
-    const gallons = totalMiles / 5;
+    const gallons = totalMiles / 5; // ~5 mpg assumption
     const fuelCost = gallons * gasPrice;
 
     const laborCost = numWorkers * numLaborDays * laborRate;
@@ -441,16 +449,14 @@ function SinglePageCalculator(props: {
 
     const packing = needsPacking ? packingCost : 0;
 
-    // Determine truck cost
-    // For round-trip: truck days = labor days + driving days
-    // For one-way: a fixed cost
+    // Truck cost
     let truckCost = 0;
     if (moveType === 'one-way') {
       truckCost = oneWayTruckCost;
     } else {
       const roundTripTruckDays = numLaborDays + drivingDays;
-      truckCost =
-        roundTripTruckDays * truckDailyRate + totalMiles * truckMileageRate;
+      truckCost = (roundTripTruckDays * truckDailyRate)
+        + (totalMiles * truckMileageRate);
     }
 
     // flights only if one-way
@@ -459,20 +465,19 @@ function SinglePageCalculator(props: {
       flightCost = numReturnFlights * flightTicketRate;
     }
 
-    // toll cost
+    // toll cost: 100 per toll as you have it
     const baseToll = numTolls * 100;
     const tollCost = (moveType === 'round-trip') ? baseToll * 2 : baseToll;
 
-    const total =
-      driverPay +
-      fuelCost +
-      laborCost +
-      hotelCost +
-      perDiemCost +
-      packing +
-      truckCost +
-      flightCost +
-      tollCost;
+    const total = driverPay
+      + fuelCost
+      + laborCost
+      + hotelCost
+      + perDiemCost
+      + packing
+      + truckCost
+      + flightCost
+      + tollCost;
 
     return {
       adjustedDriveHours,
@@ -486,7 +491,7 @@ function SinglePageCalculator(props: {
       truckCost,
       flightCost,
       tollCost,
-      total,
+      total
     };
   }
 
@@ -505,7 +510,9 @@ function SinglePageCalculator(props: {
           <button
             onClick={() => setMoveType('one-way')}
             className={`px-3 py-1 mr-2 rounded border text-black ${
-              moveType === 'one-way' ? 'border-red-500 bg-red-100' : 'border-gray-300 hover:bg-gray-50'
+              moveType === 'one-way'
+                ? 'border-red-500 bg-red-100'
+                : 'border-gray-300 hover:bg-gray-50'
             }`}
           >
             One-Way
@@ -513,7 +520,9 @@ function SinglePageCalculator(props: {
           <button
             onClick={() => setMoveType('round-trip')}
             className={`px-3 py-1 rounded border text-black ${
-              moveType === 'round-trip' ? 'border-red-500 bg-red-100' : 'border-gray-300 hover:bg-gray-50'
+              moveType === 'round-trip'
+                ? 'border-red-500 bg-red-100'
+                : 'border-gray-300 hover:bg-gray-50'
             }`}
           >
             Round-Trip
@@ -577,10 +586,26 @@ function SinglePageCalculator(props: {
 
       {/* Miles, Hours, Tolls, Gas Price (4-column grid) */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <NumberField label="Total Miles" value={totalMiles} setValue={setTotalMiles} />
-        <NumberField label="GPS Drive Hours" value={gpsDriveHours} setValue={setGpsDriveHours} />
-        <NumberField label="# Tolls" value={numTolls} setValue={setNumTolls} />
-        <NumberField label="Gas Price ($/gallon)" value={gasPrice} setValue={setGasPrice} />
+        <NumberField
+          label="Total Miles"
+          value={totalMiles}
+          setValue={setTotalMiles}
+        />
+        <NumberField
+          label="GPS Drive Hours"
+          value={gpsDriveHours}
+          setValue={setGpsDriveHours}
+        />
+        <NumberField
+          label="# Tolls"
+          value={numTolls}
+          setValue={setNumTolls}
+        />
+        <NumberField
+          label="Gas Price ($/gallon)"
+          value={gasPrice}
+          setValue={setGasPrice}
+        />
       </div>
 
       {/* 2-column row: Loading Labor | Hotel & Per Diem */}
@@ -765,7 +790,9 @@ function SinglePageCalculator(props: {
 
             {/* Extra info lines */}
             <div className="mt-2 text-sm text-black">
-              <p>GPS Drive Hours: {gpsDriveHours.toFixed(1)}, Adjusted: {costs.adjustedDriveHours.toFixed(1)}</p>
+              <p>
+                GPS Drive Hours: {gpsDriveHours.toFixed(1)}, Adjusted: {costs.adjustedDriveHours.toFixed(1)}
+              </p>
               <p>Driving Days (9hr rule): {costs.drivingDays}</p>
               <p>Loading Days: {numLaborDays}</p>
               <p>Total Job Days: {totalJobDays}</p>
