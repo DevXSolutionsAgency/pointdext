@@ -32,7 +32,7 @@ export default function DashboardPage() {
     async function loadLeads() {
       try {
         setLoadingLeads(true);
-        const res = await fetch('/services'); // your Next.js route to fetch from SmartMoving
+        const res = await fetch('/services'); // your Next.js route to fetch leads from SmartMoving
         if (!res.ok) {
           throw new Error(`Failed to fetch leads. Status: ${res.status}`);
         }
@@ -143,9 +143,15 @@ export default function DashboardPage() {
                   <tbody>
                     {leads.map(lead => (
                       <tr key={lead.id} className="hover:bg-gray-50">
-                        <td className="px-3 py-2 border text-black">{lead.customerName||'N/A'}</td>
-                        <td className="px-3 py-2 border text-black">{lead.originAddressFull||'N/A'}</td>
-                        <td className="px-3 py-2 border text-black">{lead.destinationAddressFull||'N/A'}</td>
+                        <td className="px-3 py-2 border text-black">
+                          {lead.customerName||'N/A'}
+                        </td>
+                        <td className="px-3 py-2 border text-black">
+                          {lead.originAddressFull||'N/A'}
+                        </td>
+                        <td className="px-3 py-2 border text-black">
+                          {lead.destinationAddressFull||'N/A'}
+                        </td>
                         <td className="px-3 py-2 border text-black">
                           <button
                             onClick={() => handleImportLead(lead)}
@@ -176,34 +182,41 @@ export default function DashboardPage() {
                 setPickup={setPickup}
                 delivery={delivery}
                 setDelivery={setDelivery}
+
                 totalMiles={totalMiles}
                 setTotalMiles={setTotalMiles}
                 gpsDriveHours={gpsDriveHours}
                 setGpsDriveHours={setGpsDriveHours}
                 numTolls={numTolls}
                 setNumTolls={setNumTolls}
+
                 gasPrice={gasPrice}
                 setGasPrice={setGasPrice}
                 laborRate={laborRate}
                 setLaborRate={setLaborRate}
+
                 needsHotel={needsHotel}
                 setNeedsHotel={setNeedsHotel}
                 hotelRate={hotelRate}
                 setHotelRate={setHotelRate}
                 perDiemRate={perDiemRate}
                 setPerDiemRate={setPerDiemRate}
+
                 oneWayDriverHourly={oneWayDriverHourly}
                 setOneWayDriverHourly={setOneWayDriverHourly}
                 roundTripDriverHourly={roundTripDriverHourly}
                 setRoundTripDriverHourly={setRoundTripDriverHourly}
+
                 numWorkers={numWorkers}
                 setNumWorkers={setNumWorkers}
                 numLaborDays={numLaborDays}
                 setNumLaborDays={setNumLaborDays}
+
                 needsPacking={needsPacking}
                 setNeedsPacking={setNeedsPacking}
                 packingCost={packingCost}
                 setPackingCost={setPackingCost}
+
                 penskeCity={penskeCity}
                 setPenskeCity={setPenskeCity}
                 oneWayTruckCost={oneWayTruckCost}
@@ -212,6 +225,7 @@ export default function DashboardPage() {
                 setTruckDailyRate={setTruckDailyRate}
                 truckMileageRate={truckMileageRate}
                 setTruckMileageRate={setTruckMileageRate}
+
                 numReturnFlights={numReturnFlights}
                 setNumReturnFlights={setNumReturnFlights}
                 flightTicketRate={flightTicketRate}
@@ -349,6 +363,9 @@ function SinglePageCalculator(props: {
     flightTicketRate, setFlightTicketRate
   } = props;
 
+  // Store nearest airport name for one-way moves
+  const [nearestAirport, setNearestAirport] = useState('');
+
   // Handle the multi-leg route fetch
   async function handleDistanceCalc() {
     if (!moveType || !warehouseStart || !pickup || !delivery) {
@@ -379,9 +396,16 @@ function SinglePageCalculator(props: {
         throw new Error(data.error || 'Failed to calculate route');
       }
 
-      const { distance, duration } = data.data; // miles + minutes
+      const { distance, duration, nearestAirport: airportName } = data.data;
       setTotalMiles(distance);
       setGpsDriveHours(duration / 60);
+
+      // If one-way, get nearest airport from the response
+      if (moveType === 'one-way' && airportName) {
+        setNearestAirport(airportName);
+      } else {
+        setNearestAirport('');
+      }
 
       alert(`Route = ${distance.toFixed(1)} miles, ~${(duration/60).toFixed(1)} hours`);
     } catch (err: any) {
@@ -425,8 +449,8 @@ function SinglePageCalculator(props: {
       truckCost = oneWayTruckCost;
     } else {
       const roundTripTruckDays = numLaborDays + drivingDays;
-      truckCost = (roundTripTruckDays * truckDailyRate)
-        + (totalMiles * truckMileageRate);
+      truckCost =
+        roundTripTruckDays * truckDailyRate + totalMiles * truckMileageRate;
     }
 
     // flights only if one-way
@@ -439,8 +463,16 @@ function SinglePageCalculator(props: {
     const baseToll = numTolls * 100;
     const tollCost = (moveType === 'round-trip') ? baseToll * 2 : baseToll;
 
-    const total = driverPay + fuelCost + laborCost + hotelCost + perDiemCost
-      + packing + truckCost + flightCost + tollCost;
+    const total =
+      driverPay +
+      fuelCost +
+      laborCost +
+      hotelCost +
+      perDiemCost +
+      packing +
+      truckCost +
+      flightCost +
+      tollCost;
 
     return {
       adjustedDriveHours,
@@ -499,6 +531,21 @@ function SinglePageCalculator(props: {
         </div>
       </div>
 
+      {/* If one-way, show nearest airport read-only */}
+      {moveType === 'one-way' && (
+        <div className="border p-3 rounded space-y-2">
+          <label className="block text-black mb-2">
+            <span className="font-medium">Nearest Airport (auto-filled):</span>
+            <input
+              type="text"
+              readOnly
+              className="border border-gray-300 rounded w-full mt-1 p-2 text-black bg-gray-50"
+              value={nearestAirport}
+            />
+          </label>
+        </div>
+      )}
+
       {/* Addresses (2-column grid for compactness) */}
       <div className="border p-3 rounded space-y-3">
         <h3 className="font-semibold text-black">Addresses</h3>
@@ -542,10 +589,22 @@ function SinglePageCalculator(props: {
         <div className="border p-3 rounded space-y-2">
           <h3 className="font-semibold text-black">Loading Labor</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <NumberField label="# of Workers" value={numWorkers} setValue={setNumWorkers} />
-            <NumberField label="# of Days" value={numLaborDays} setValue={setNumLaborDays} />
+            <NumberField
+              label="# of Workers"
+              value={numWorkers}
+              setValue={setNumWorkers}
+            />
+            <NumberField
+              label="# of Days"
+              value={numLaborDays}
+              setValue={setNumLaborDays}
+            />
           </div>
-          <NumberField label="Daily Rate ($/day/guy)" value={laborRate} setValue={setLaborRate} />
+          <NumberField
+            label="Daily Rate ($/day/guy)"
+            value={laborRate}
+            setValue={setLaborRate}
+          />
         </div>
 
         {/* Hotel & Per Diem Toggle */}
@@ -754,10 +813,8 @@ function NumberField({
   value: number;
   setValue: (val: number) => void;
 }) {
-  // We manage a local string so the user can freely edit/deletes.
   const [localValue, setLocalValue] = useState(value === 0 ? '' : String(value));
 
-  // Whenever the parent value changes externally, sync local display
   useEffect(() => {
     if (value === 0) {
       setLocalValue('');
