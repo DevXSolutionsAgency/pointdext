@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
 
-/** We'll store coordinates in { lat, lng } */
+/** We'll store coordinates in { lat, lng } shape */
 interface Coord {
   lat: number;
   lng: number;
@@ -21,19 +21,24 @@ interface DirectionsResponse {
   status: string;
 }
 
-/** For geocoding */
+/** For geocoding responses */
 interface GeocodeResponse {
   results: Array<{
-    geometry: { location: { lat: number; lng: number } };
+    geometry: {
+      location: { lat: number; lng: number };
+    };
   }>;
   status: string;
 }
 
-/** For the Places API (finding nearest international airport) */
+/** For the Places Nearby Search response */
 interface PlacesSearchResponse {
   results: Array<{
     name?: string;
-    geometry?: { location?: { lat: number; lng: number } };
+    geometry?: {
+      location?: { lat: number; lng: number };
+    };
+    // other fields as needed
   }>;
   status: string;
 }
@@ -56,15 +61,10 @@ async function geocodeAddress(address: string): Promise<Coord> {
   return resp.data.results[0].geometry.location;
 }
 
-/**
- * Helper: Use the Directions API to get distance (miles), duration (minutes),
- * and tollCount for a single route from 'fromCoord' to 'toCoord'.
- */
+/** Helper: Directions API to get distance, duration, and tollCount for a single route */
 async function getDirectionsSegment(from: Coord, to: Coord) {
   const origin = `${from.lat},${from.lng}`;
   const destination = `${to.lat},${to.lng}`;
-
-  // Basic driving route
   const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin}&destination=${destination}&key=${GOOGLE_MAPS_API_KEY}`;
 
   const resp = await axios.get<DirectionsResponse>(url);
@@ -74,10 +74,8 @@ async function getDirectionsSegment(from: Coord, to: Coord) {
     );
   }
 
-  // We'll just take the first route
   const route = resp.data.routes[0];
-  const leg = route.legs[0]; // There's typically only 1 leg if no waypoints
-
+  const leg = route.legs[0]; // typically only 1 leg
   const distanceMiles = leg.distance.value / 1609.34;
   const durationMinutes = leg.duration.value / 60;
 
@@ -98,27 +96,39 @@ async function getDirectionsSegment(from: Coord, to: Coord) {
 }
 
 /**
- * Helper: Use Places API to find the nearest **international** airport to given lat/lng.
- * This uses the `keyword=international` parameter so only airports named "International" appear.
+ * Helper: Use Places Nearby Search to find any airports, rank by distance,
+ * then pick the first that has "international" in its name. If none found,
+ * fallback to the #1 result, if any.
  */
-async function getNearestInternationalAirport(deliveryCoord: Coord): Promise<string> {
-  const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${deliveryCoord.lat},${deliveryCoord.lng}&rankby=distance&type=airport&keyword=international&key=${GOOGLE_MAPS_API_KEY}`;
+async function getNearestMajorAirport(deliveryCoord: Coord): Promise<string> {
+  // No more "keyword=international" here. We'll manually filter below.
+  const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${deliveryCoord.lat},${deliveryCoord.lng}&rankby=distance&type=airport&key=${GOOGLE_MAPS_API_KEY}`;
 
   const resp = await axios.get<PlacesSearchResponse>(url);
-  if (resp.data.status === 'OK' && resp.data.results?.length) {
-    return resp.data.results[0].name || 'Unknown International Airport';
+  if (resp.data.status !== 'OK' || !resp.data.results?.length) {
+    return 'No International Airport Found';
   }
-  return 'No International Airport Found';
+
+  // 1) Look for an airport with "international" in the name
+  for (const place of resp.data.results) {
+    const name = place.name?.toLowerCase() || '';
+    if (name.includes('international')) {
+      return place.name || 'Unknown International Airport';
+    }
+  }
+
+  // 2) If none are named "international," fallback to the first result
+  return resp.data.results[0].name || 'No Airport Found';
 }
 
 /**
  * POST /api/calculate-distance
  * Body: {
  *   moveType: 'one-way' | 'round-trip',
- *   warehouse: string,
- *   pickup: string,
- *   delivery: string,
- *   returnWarehouse?: string
+ *   warehouse: string,       // e.g. "3045 S 46th st"
+ *   pickup: string,          // e.g. "123 Main st"
+ *   delivery: string,        // e.g. "456 Elm st"
+ *   returnWarehouse?: string // if round-trip
  * }
  */
 export async function POST(request: Request) {
@@ -132,7 +142,6 @@ export async function POST(request: Request) {
         returnWarehouse?: string;
       };
 
-    // Validate
     if (!moveType || !warehouse || !pickup || !delivery) {
       throw new Error('Missing required fields: moveType, warehouse, pickup, delivery.');
     }
@@ -151,11 +160,9 @@ export async function POST(request: Request) {
       returnCoord = await geocodeAddress(ret);
     }
 
-    // We'll accumulate total distance, total duration, and total tolls across each segment
     let totalDistanceMiles = 0;
     let totalDurationMinutes = 0;
     let totalTolls = 0;
-
     let nearestAirport = '';
 
     if (moveType === 'one-way') {
@@ -171,26 +178,25 @@ export async function POST(request: Request) {
       totalDurationMinutes += seg2.durationMinutes;
       totalTolls += seg2.tollsCount;
 
-      // Find nearest "international" airport
-      nearestAirport = await getNearestInternationalAirport(deliveryCoord);
+      // Find the "major" airport using the new function
+      nearestAirport = await getNearestMajorAirport(deliveryCoord);
     } else {
-      // Round-trip
-      // Segment 1: warehouse -> pickup
+      // Round-trip: warehouse -> pickup -> delivery -> returnWarehouse
       const seg1 = await getDirectionsSegment(warehouseCoord, pickupCoord);
       totalDistanceMiles += seg1.distanceMiles;
       totalDurationMinutes += seg1.durationMinutes;
       totalTolls += seg1.tollsCount;
 
-      // Segment 2: pickup -> delivery
       const seg2 = await getDirectionsSegment(pickupCoord, deliveryCoord);
       totalDistanceMiles += seg2.distanceMiles;
       totalDurationMinutes += seg2.durationMinutes;
       totalTolls += seg2.tollsCount;
 
       if (!returnCoord) {
-        throw new Error('Round-trip requested but no return warehouse found.');
+        throw new Error(
+          'Round-trip requested, but returnWarehouse not provided nor fallback found.'
+        );
       }
-      // Segment 3: delivery -> returnWarehouse
       const seg3 = await getDirectionsSegment(deliveryCoord, returnCoord);
       totalDistanceMiles += seg3.distanceMiles;
       totalDurationMinutes += seg3.durationMinutes;
@@ -202,8 +208,8 @@ export async function POST(request: Request) {
       data: {
         distance: totalDistanceMiles,
         duration: totalDurationMinutes,
-        tolls: totalTolls,          // <--- We return total toll steps
-        nearestAirport,            // only non-empty if one-way
+        tolls: totalTolls,
+        nearestAirport, // only meaningful if one-way
       },
     });
   } catch (error: any) {
@@ -217,3 +223,4 @@ export async function POST(request: Request) {
     );
   }
 }
+ 

@@ -26,13 +26,13 @@ export default function DashboardPage() {
   // 2) Leads table state
   const [leads, setLeads] = useState<SmartMovingLead[]>([]);
   const [loadingLeads, setLoadingLeads] = useState(true);
-  const [error, setError] = useState<string|null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadLeads() {
       try {
         setLoadingLeads(true);
-        const res = await fetch('/services'); // your Next.js route to fetch leads from SmartMoving
+        const res = await fetch('/services'); // your Next.js route to fetch leads
         if (!res.ok) {
           throw new Error(`Failed to fetch leads. Status: ${res.status}`);
         }
@@ -143,15 +143,9 @@ export default function DashboardPage() {
                   <tbody>
                     {leads.map(lead => (
                       <tr key={lead.id} className="hover:bg-gray-50">
-                        <td className="px-3 py-2 border text-black">
-                          {lead.customerName || 'N/A'}
-                        </td>
-                        <td className="px-3 py-2 border text-black">
-                          {lead.originAddressFull || 'N/A'}
-                        </td>
-                        <td className="px-3 py-2 border text-black">
-                          {lead.destinationAddressFull || 'N/A'}
-                        </td>
+                        <td className="px-3 py-2 border text-black">{lead.customerName || 'N/A'}</td>
+                        <td className="px-3 py-2 border text-black">{lead.originAddressFull || 'N/A'}</td>
+                        <td className="px-3 py-2 border text-black">{lead.destinationAddressFull || 'N/A'}</td>
                         <td className="px-3 py-2 border text-black">
                           <button
                             onClick={() => handleImportLead(lead)}
@@ -182,41 +176,34 @@ export default function DashboardPage() {
                 setPickup={setPickup}
                 delivery={delivery}
                 setDelivery={setDelivery}
-
                 totalMiles={totalMiles}
                 setTotalMiles={setTotalMiles}
                 gpsDriveHours={gpsDriveHours}
                 setGpsDriveHours={setGpsDriveHours}
                 numTolls={numTolls}
                 setNumTolls={setNumTolls}
-
                 gasPrice={gasPrice}
                 setGasPrice={setGasPrice}
                 laborRate={laborRate}
                 setLaborRate={setLaborRate}
-
                 needsHotel={needsHotel}
                 setNeedsHotel={setNeedsHotel}
                 hotelRate={hotelRate}
                 setHotelRate={setHotelRate}
                 perDiemRate={perDiemRate}
                 setPerDiemRate={setPerDiemRate}
-
                 oneWayDriverHourly={oneWayDriverHourly}
                 setOneWayDriverHourly={setOneWayDriverHourly}
                 roundTripDriverHourly={roundTripDriverHourly}
                 setRoundTripDriverHourly={setRoundTripDriverHourly}
-
                 numWorkers={numWorkers}
                 setNumWorkers={setNumWorkers}
                 numLaborDays={numLaborDays}
                 setNumLaborDays={setNumLaborDays}
-
                 needsPacking={needsPacking}
                 setNeedsPacking={setNeedsPacking}
                 packingCost={packingCost}
                 setPackingCost={setPackingCost}
-
                 penskeCity={penskeCity}
                 setPenskeCity={setPenskeCity}
                 oneWayTruckCost={oneWayTruckCost}
@@ -225,7 +212,6 @@ export default function DashboardPage() {
                 setTruckDailyRate={setTruckDailyRate}
                 truckMileageRate={truckMileageRate}
                 setTruckMileageRate={setTruckMileageRate}
-
                 numReturnFlights={numReturnFlights}
                 setNumReturnFlights={setNumReturnFlights}
                 flightTicketRate={flightTicketRate}
@@ -267,9 +253,8 @@ function ViewToggle({
   );
 }
 
-/** The full single-page calculator component */
+/** The single-page calculator component */
 function SinglePageCalculator(props: {
-  // move type
   moveType: MoveType;
   setMoveType: (v: MoveType) => void;
 
@@ -305,6 +290,7 @@ function SinglePageCalculator(props: {
   perDiemRate: number;
   setPerDiemRate: (v: number) => void;
 
+  // driver rates
   oneWayDriverHourly: number;
   setOneWayDriverHourly: (v: number) => void;
   roundTripDriverHourly: number;
@@ -363,10 +349,148 @@ function SinglePageCalculator(props: {
     flightTicketRate, setFlightTicketRate
   } = props;
 
-  // Store nearest airport name for one-way moves
+  // We'll store the nearest airport name (e.g. "Los Angeles International Airport")
   const [nearestAirport, setNearestAirport] = useState('');
 
-  // Handle the multi-leg route fetch
+  /**
+   * A dictionary of major US international airports in lowercase -> IATA code.
+   * For example, if Google returns "Los Angeles International Airport" in nearestAirport,
+   * we do "los angeles international airport" -> "LAX".
+   */
+  const airportNameToIATA: Record<string, string> = {
+    'hartsfield-jackson atlanta international airport': 'ATL',
+    'los angeles international airport': 'LAX',
+    'chicago o\'hare international airport': 'ORD',
+    'dallas/fort worth international airport': 'DFW',
+    'denver international airport': 'DEN',
+    'john f. kennedy international airport': 'JFK',
+    'san francisco international airport': 'SFO',
+    'seattle-tacoma international airport': 'SEA',
+    'miami international airport': 'MIA',
+    'orlando international airport': 'MCO',
+    'newark liberty international airport': 'EWR',
+    'houston george bush intercontinental airport': 'IAH',
+    'washington dulles international airport': 'IAD',
+    'boston logan international airport': 'BOS',
+    'detroit metropolitan wayne county airport': 'DTW',
+    'charlotte douglas international airport': 'CLT',
+    'philadelphia international airport': 'PHL',
+    'minneapolis–saint paul international airport': 'MSP',
+    'fort lauderdale–hollywood international airport': 'FLL',
+    'salt lake city international airport': 'SLC',
+    'washington ronald reagan national airport': 'DCA',
+    'chicago midway international airport': 'MDW',
+    'tampa international airport': 'TPA',
+    'portland international airport': 'PDX',
+    'honolulu daniel k. inouye international airport': 'HNL',
+    'st. louis lambert international airport': 'STL',
+    'nashville international airport': 'BNA',
+    'austin–bergstrom international airport': 'AUS',
+    'indianapolis international airport': 'IND',
+    'san diego international airport': 'SAN',
+    'kansas city international airport': 'MCI',
+    'sacramento international airport': 'SMF',
+    'san antonio international airport': 'SAT',
+    'pittsburgh international airport': 'PIT',
+    'raleigh–durham international airport': 'RDU',
+    'cleveland hopkins international airport': 'CLE',
+    'cincinnati/northern kentucky international airport': 'CVG',
+    'jacksonville international airport': 'JAX',
+    'memphis international airport': 'MEM',
+    'louisville muhammad ali international airport': 'SDF',
+    'milwaukee mitchell international airport': 'MKE',
+    'new orleans louis armstrong international airport': 'MSY',
+    'baltimore/washington international thurgood marshall airport': 'BWI',
+    'anchorage ted stevens international airport': 'ANC',
+    'albuquerque international sunport': 'ABQ',
+    'omaha eppley airfield': 'OMA',
+    'buffalo niagara international airport': 'BUF',
+    'richmond international airport': 'RIC',
+    'boise airport': 'BOI',
+    'birmingham-shuttlesworth international airport': 'BHM',
+    'hartford bradley international airport': 'BDL',
+    'columbus john glenn international airport': 'CMH',
+    'ontario international airport': 'ONT',
+    'palm beach international airport': 'PBI',
+    'sarasota–bradenton international airport': 'SRQ',
+    'charleston international airport': 'CHS',
+    'greenville–spartanburg international airport': 'GSP',
+    'myrtle beach international airport': 'MYR',
+    'hilton head airport': 'HHH',
+    'savannah/hilton head international airport': 'SAV',
+    'pensacola international airport': 'PNS',
+    'key west international airport': 'EYW',
+    'gulfport–biloxi international airport': 'GPT',
+    'jackson–medgar wiley evers international airport': 'JAN',
+    'burlington international airport': 'BTV',
+    'manchester–boston regional airport': 'MHT',
+    'tucson international airport': 'TUS',
+    'el paso international airport': 'ELP',
+    'lubbock preston smith international airport': 'LBB',
+    'midland international air and space port': 'MAF',
+    'eugene airport': 'EUG',
+    'rogue valley international–medford airport': 'MFR',
+    'spokane international airport': 'GEG',
+    'bozeman yellowstone international airport': 'BZN',
+    'missoula international airport': 'MSO',
+    'billings logan international airport': 'BIL',
+    'fargo hector international airport': 'FAR',
+    'grand forks international airport': 'GFK',
+    'sioux falls regional airport': 'FSD',
+    'rapid city regional airport': 'RAP',
+    'des moines international airport': 'DSM',
+    'cedar rapids eastern iowa airport': 'CID',
+    'wichita dwight d. eisenhower national airport': 'ICT',
+    'lexington blue grass airport': 'LEX',
+    'newport news/williamsburg international airport': 'PHF',
+    'norfolk international airport': 'ORF',
+    'roanoke–blacksburg regional airport': 'ROA',
+    'syracuse hancock international airport': 'SYR',
+    'albany international airport': 'ALB',
+    'rochester international airport': 'RST',
+    'green bay austin straubel international airport': 'GRB',
+    'madison dane county regional airport': 'MSN',
+    'appleton international airport': 'ATW',
+    'grand rapids gerald r. ford international airport': 'GRR',
+    'flint bishop international airport': 'FNT',
+    'kalamazoo/battle creek international airport': 'AZO',
+    'cherry capital airport': 'TVC',
+    'little rock clinton national airport': 'LIT',
+    'oklahoma city will rogers world airport': 'OKC',
+    'tulsa international airport': 'TUL',
+    'springfield–branson national airport': 'SGF',
+    'columbia metropolitan airport': 'CAE',
+    'montgomery regional airport': 'MGM',
+    'huntsville international airport': 'HSV',
+    'mobile regional airport': 'MOB',
+    'gainesville regional airport': 'GNV',
+    'fort myers southwest florida international airport': 'RSW',
+    'fort wayne international airport': 'FWA',
+    'south bend international airport': 'SBN',
+    'peoria general wayne a. downing peoria international airport': 'PIA',
+    'quad city international airport': 'MLI',
+    'lincoln airport': 'LNK',
+    'eppley airfield': 'OMA',
+    'sioux gateway airport': 'SUX',
+    'cheyenne regional airport': 'CYS',
+    'jackson hole airport': 'JAC',
+    'idaho falls regional airport': 'IDA',
+  }
+
+  /** Convert a google returned name (nearestAirport) -> IATA code. */
+  function getIataCodeFromName(name: string): string {
+    const lower = name.toLowerCase();
+    // We'll do an exact "includes" check for each key in the dictionary
+    for (const knownName in airportNameToIATA) {
+      if (lower.includes(knownName)) {
+        return airportNameToIATA[knownName];
+      }
+    }
+    // fallback
+    return 'JFK';
+  }
+
+  // 1) Handle distance calc
   async function handleDistanceCalc() {
     if (!moveType || !warehouseStart || !pickup || !delivery) {
       alert('Please fill in moveType, warehouseStart, pickup, and delivery');
@@ -379,7 +503,7 @@ function SinglePageCalculator(props: {
         warehouse: warehouseStart,
         pickup,
         delivery,
-        returnWarehouse: warehouseReturn // used if round-trip
+        returnWarehouse: warehouseReturn
       };
 
       const res = await fetch('/api/calculate-distance', {
@@ -396,50 +520,89 @@ function SinglePageCalculator(props: {
         throw new Error(data.error || 'Failed to calculate route');
       }
 
-      // We expect { distance, duration, tolls, nearestAirport } in data.data
-      const { distance, duration, tolls, nearestAirport: airportName } = data.data;
+      // { distance, duration, tolls, nearestAirport }
+      const { distance, duration, tolls, nearestAirport: googleAirport } = data.data;
 
-      // Set the distance, drive hours
       setTotalMiles(distance);
       setGpsDriveHours(duration / 60);
-
-      // Auto-fill # Tolls from the server
       setNumTolls(tolls);
 
-      // If one-way, get nearest airport from the response
-      if (moveType === 'one-way' && airportName) {
-        setNearestAirport(airportName);
+      if (moveType === 'one-way' && googleAirport) {
+        setNearestAirport(googleAirport);
       } else {
         setNearestAirport('');
       }
 
-      alert(
-        `Route = ${distance.toFixed(1)} miles, ~${(duration / 60).toFixed(1)} hours\nTolls: ${tolls}`
-      );
+      alert(`Route = ${distance.toFixed(1)} miles, ~${(duration / 60).toFixed(1)} hours\nTolls: ${tolls}`);
     } catch (err: any) {
       alert(`Error calculating route: ${err.message}`);
       console.error(err);
     }
   }
 
-  // Basic cost logic
+  // 2) Handle check flight price: calls /api/calculate-flight
+  async function handleCheckFlightPrice() {
+    if (!nearestAirport) {
+      alert('No nearest airport found. Please run "Calculate Distance" first.');
+      return;
+    }
+    // convert to code
+    const originCode = getIataCodeFromName(nearestAirport);
+
+    // departure date = tomorrow
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const depStr = tomorrow.toISOString().split('T')[0];
+
+    const adults = numReturnFlights || 1;
+
+    try {
+      const res = await fetch('/api/calculate-flight', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          originAirport: originCode,
+          departureDate: depStr,
+          adults
+        })
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to fetch flight price');
+      }
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to get flight price from Amadeus');
+      }
+
+      const flightPrice = data.flightPrice;
+      // update flightTicketRate
+      setFlightTicketRate(flightPrice);
+
+      alert(`Found flight from ${originCode} -> PHX for ~$${flightPrice}. Updated flightTicketRate.`);
+    } catch (err: any) {
+      alert(`Amadeus flight error: ${err.message}`);
+      console.error(err);
+    }
+  }
+
+  // 3) Summarize cost
   function calculateCost() {
     // +2 hours for every 6 hours of GPS time
     const extraHours = Math.floor(gpsDriveHours / 6) * 2;
     const adjustedDriveHours = gpsDriveHours + extraHours;
     const drivingDays = Math.ceil(gpsDriveHours / 9);
 
-    const driverRate = moveType === 'one-way'
+    const driverRate = (moveType === 'one-way')
       ? oneWayDriverHourly
       : roundTripDriverHourly;
 
     const driverPay = adjustedDriveHours * driverRate;
-    const gallons = totalMiles / 5; // ~5 mpg assumption
+    const gallons = totalMiles / 5; 
     const fuelCost = gallons * gasPrice;
 
     const laborCost = numWorkers * numLaborDays * laborRate;
 
-    // Hotel & PerDiem only if toggled
     let hotelCost = 0;
     let perDiemCost = 0;
     if (needsHotel) {
@@ -449,35 +612,24 @@ function SinglePageCalculator(props: {
 
     const packing = needsPacking ? packingCost : 0;
 
-    // Truck cost
     let truckCost = 0;
     if (moveType === 'one-way') {
       truckCost = oneWayTruckCost;
     } else {
       const roundTripTruckDays = numLaborDays + drivingDays;
-      truckCost = (roundTripTruckDays * truckDailyRate)
-        + (totalMiles * truckMileageRate);
+      truckCost = (roundTripTruckDays * truckDailyRate) + (totalMiles * truckMileageRate);
     }
 
-    // flights only if one-way
     let flightCost = 0;
     if (moveType === 'one-way') {
       flightCost = numReturnFlights * flightTicketRate;
     }
 
-    // toll cost: 100 per toll as you have it
     const baseToll = numTolls * 100;
     const tollCost = (moveType === 'round-trip') ? baseToll * 2 : baseToll;
 
-    const total = driverPay
-      + fuelCost
-      + laborCost
-      + hotelCost
-      + perDiemCost
-      + packing
-      + truckCost
-      + flightCost
-      + tollCost;
+    const total = driverPay + fuelCost + laborCost + hotelCost + perDiemCost +
+      packing + truckCost + flightCost + tollCost;
 
     return {
       adjustedDriveHours,
@@ -502,17 +654,15 @@ function SinglePageCalculator(props: {
     <div className="space-y-6">
       <h2 className="text-xl font-bold text-black mb-3">Move Calculator</h2>
 
-      {/* Top row: Move Type on left, "Calculate Distance" on right */}
+      {/* Top row: Move Type & Distance */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-        {/* Move Type */}
+        {/* Move Type toggle */}
         <div className="mb-2 md:mb-0">
           <label className="font-medium mr-3 text-black">Move Type:</label>
           <button
             onClick={() => setMoveType('one-way')}
             className={`px-3 py-1 mr-2 rounded border text-black ${
-              moveType === 'one-way'
-                ? 'border-red-500 bg-red-100'
-                : 'border-gray-300 hover:bg-gray-50'
+              moveType === 'one-way' ? 'border-red-500 bg-red-100' : 'border-gray-300 hover:bg-gray-50'
             }`}
           >
             One-Way
@@ -520,16 +670,14 @@ function SinglePageCalculator(props: {
           <button
             onClick={() => setMoveType('round-trip')}
             className={`px-3 py-1 rounded border text-black ${
-              moveType === 'round-trip'
-                ? 'border-red-500 bg-red-100'
-                : 'border-gray-300 hover:bg-gray-50'
+              moveType === 'round-trip' ? 'border-red-500 bg-red-100' : 'border-gray-300 hover:bg-gray-50'
             }`}
           >
             Round-Trip
           </button>
         </div>
 
-        {/* Button to fetch real route */}
+        {/* "Calculate Distance" */}
         <div>
           <button
             onClick={handleDistanceCalc}
@@ -540,8 +688,8 @@ function SinglePageCalculator(props: {
         </div>
       </div>
 
-      {/* If one-way, show nearest airport read-only */}
-      {moveType === 'one-way' && (
+      {/* If one-way, show nearest airport read-only + "Check Flight Price" */}
+      {moveType === 'one-way' && nearestAirport && (
         <div className="border p-3 rounded space-y-2">
           <label className="block text-black mb-2">
             <span className="font-medium">Nearest Airport (auto-filled):</span>
@@ -552,10 +700,17 @@ function SinglePageCalculator(props: {
               value={nearestAirport}
             />
           </label>
+          {/* Button to check flight price from nearestAirport -> PHX */}
+          <button
+            onClick={handleCheckFlightPrice}
+            className="px-4 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600"
+          >
+            Check Flight Price via Amadeus
+          </button>
         </div>
       )}
 
-      {/* Addresses (2-column grid for compactness) */}
+      {/* Addresses */}
       <div className="border p-3 rounded space-y-3">
         <h3 className="font-semibold text-black">Addresses</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -584,46 +739,22 @@ function SinglePageCalculator(props: {
         </div>
       </div>
 
-      {/* Miles, Hours, Tolls, Gas Price (4-column grid) */}
+      {/* Miles, Hours, Tolls, Gas Price */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <NumberField
-          label="Total Miles"
-          value={totalMiles}
-          setValue={setTotalMiles}
-        />
-        <NumberField
-          label="GPS Drive Hours"
-          value={gpsDriveHours}
-          setValue={setGpsDriveHours}
-        />
-        <NumberField
-          label="# Tolls"
-          value={numTolls}
-          setValue={setNumTolls}
-        />
-        <NumberField
-          label="Gas Price ($/gallon)"
-          value={gasPrice}
-          setValue={setGasPrice}
-        />
+        <NumberField label="Total Miles" value={totalMiles} setValue={setTotalMiles} />
+        <NumberField label="GPS Drive Hours" value={gpsDriveHours} setValue={setGpsDriveHours} />
+        <NumberField label="# Tolls" value={numTolls} setValue={setNumTolls} />
+        <NumberField label="Gas Price ($/gallon)" value={gasPrice} setValue={setGasPrice} />
       </div>
 
-      {/* 2-column row: Loading Labor | Hotel & Per Diem */}
+      {/* 2-col: Loading Labor | Hotel & Per Diem */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Loading Labor */}
         <div className="border p-3 rounded space-y-2">
           <h3 className="font-semibold text-black">Loading Labor</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <NumberField
-              label="# of Workers"
-              value={numWorkers}
-              setValue={setNumWorkers}
-            />
-            <NumberField
-              label="# of Days"
-              value={numLaborDays}
-              setValue={setNumLaborDays}
-            />
+            <NumberField label="# of Workers" value={numWorkers} setValue={setNumWorkers} />
+            <NumberField label="# of Days" value={numLaborDays} setValue={setNumLaborDays} />
           </div>
           <NumberField
             label="Daily Rate ($/day/guy)"
@@ -632,9 +763,9 @@ function SinglePageCalculator(props: {
           />
         </div>
 
-        {/* Hotel & Per Diem Toggle */}
+        {/* Hotel & Per Diem */}
         <div className="border p-3 rounded space-y-2">
-          <h3 className="font-semibold text-black">Hotel &amp; Per Diem</h3>
+          <h3 className="font-semibold text-black">Hotel & Per Diem</h3>
           <div className="flex items-center space-x-2">
             <input
               type="checkbox"
@@ -660,7 +791,7 @@ function SinglePageCalculator(props: {
         </div>
       </div>
 
-      {/* 2-column row: Packing | Truck Rental */}
+      {/* 2-col: Packing | Truck Rental */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Packing */}
         <div className="border p-3 rounded space-y-2">
@@ -722,7 +853,7 @@ function SinglePageCalculator(props: {
         </div>
       </div>
 
-      {/* 2-column row: Return Flights (if one-way) | Driver Hourly Rates */}
+      {/* 2-col: Return Flights (if one-way) | Driver Hourly Rates */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Plane Tickets (One-Way Only) */}
         {moveType === 'one-way' && (
@@ -741,7 +872,7 @@ function SinglePageCalculator(props: {
           </div>
         )}
 
-        {/* Driver Hourly Rates (Conditional Display) */}
+        {/* Driver Hourly Rates */}
         <div className="border p-3 rounded space-y-2">
           <h3 className="font-semibold text-black">Driver Hourly Rates</h3>
           {moveType === 'one-way' && (
@@ -761,7 +892,7 @@ function SinglePageCalculator(props: {
         </div>
       </div>
 
-      {/* Final Cost Breakdown (full width) */}
+      {/* Final Cost Breakdown */}
       {(() => {
         const costs = calculateCost();
         return (
@@ -773,9 +904,7 @@ function SinglePageCalculator(props: {
               <LineItem label="Loading Labor" value={costs.laborCost} />
               {needsHotel && <LineItem label="Hotel" value={costs.hotelCost} />}
               {needsHotel && <LineItem label="Per Diem" value={costs.perDiemCost} />}
-              {needsPacking && (
-                <LineItem label="Packing" value={costs.packingCost} />
-              )}
+              {needsPacking && <LineItem label="Packing" value={costs.packingCost} />}
               <LineItem label="Truck Cost" value={costs.truckCost} />
               {moveType === 'one-way' && (
                 <LineItem label="Flight Cost" value={costs.flightCost} />
@@ -790,9 +919,7 @@ function SinglePageCalculator(props: {
 
             {/* Extra info lines */}
             <div className="mt-2 text-sm text-black">
-              <p>
-                GPS Drive Hours: {gpsDriveHours.toFixed(1)}, Adjusted: {costs.adjustedDriveHours.toFixed(1)}
-              </p>
+              <p>GPS Drive Hours: {gpsDriveHours.toFixed(1)}, Adjusted: {costs.adjustedDriveHours.toFixed(1)}</p>
               <p>Driving Days (9hr rule): {costs.drivingDays}</p>
               <p>Loading Days: {numLaborDays}</p>
               <p>Total Job Days: {totalJobDays}</p>
@@ -828,8 +955,8 @@ function TextField({
 }
 
 /**
- * A numeric input that allows the user to delete the zero
- * without immediately snapping back to '0'.
+ * A numeric input that allows the user to delete '0' 
+ * without snapping back to '0'.
  */
 function NumberField({
   label,
@@ -877,14 +1004,8 @@ function NumberField({
   );
 }
 
-/** A row for cost breakdown */
-function LineItem({
-  label,
-  value
-}: {
-  label: string;
-  value: number;
-}) {
+/** A row for cost breakdown items */
+function LineItem({ label, value }: { label: string; value: number }) {
   return (
     <div className="flex justify-between bg-white p-2 rounded text-black">
       <span>{label}</span>
