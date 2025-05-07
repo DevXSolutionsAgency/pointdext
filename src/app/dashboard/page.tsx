@@ -19,6 +19,29 @@ interface SmartMovingLead {
 
 type MoveType = 'one-way' | 'round-trip';
 
+const defaultPackingItems = [
+  { name: 'Small Box',          price: 3.25,  quantity: 0 },
+  { name: 'Medium Box',         price: 4.25,  quantity: 0 },
+  { name: 'Large Box',          price: 5.25,  quantity: 0 },
+  { name: 'Dish Box',           price: 10,    quantity: 0 },
+  { name: 'Dish Pack Inserts',  price: 12,    quantity: 0 },
+  { name: 'TV Box',             price: 25,    quantity: 0 },
+  { name: 'Wardrobe Box',       price: 20,    quantity: 0 },
+  { name: 'Mattress Bag (King)',price: 15,    quantity: 0 },
+  { name: 'Speed Pack',         price: 60,    quantity: 0 },
+  { name: 'Paper Pad (Brown)',  price: 3,     quantity: 0 },
+  { name: 'Packing Paper (200)',price: 40,    quantity: 0 },
+  { name: 'Furniture Pad',      price: 20,    quantity: 0 },
+  { name: '4 Pack Mirror Carton',price:25,    quantity: 0 },
+  { name: 'Lamp Box',           price: 5,     quantity: 0 },
+  { name: 'Piano Board',        price: 200,   quantity: 0 },
+  { name: 'Straps/Tie Downs',   price: 10,    quantity: 0 },
+  { name: 'Floor Protection',   price: 100,   quantity: 0 },
+  { name: 'Mattress Box',       price: 45,    quantity: 0 },
+  { name: 'Pre Move Package',   price: 100,   quantity: 0 },
+  { name: 'French Cleat',       price: 20,    quantity: 0 },
+];
+
 export default function DashboardPage() {
   // 1) Which view to show?
   const [view, setView] = useState<'split' | 'leads' | 'calculator'>('split');
@@ -76,7 +99,6 @@ export default function DashboardPage() {
   const [numLaborDays, setNumLaborDays] = useState(1);
 
   const [needsPacking, setNeedsPacking] = useState(false);
-  const [packingCost, setPackingCost] = useState(0);
 
   const [penskeCity, setPenskeCity] = useState('');
   const [oneWayTruckCost, setOneWayTruckCost] = useState(0);
@@ -202,8 +224,6 @@ export default function DashboardPage() {
                 setNumLaborDays={setNumLaborDays}
                 needsPacking={needsPacking}
                 setNeedsPacking={setNeedsPacking}
-                packingCost={packingCost}
-                setPackingCost={setPackingCost}
                 penskeCity={penskeCity}
                 setPenskeCity={setPenskeCity}
                 oneWayTruckCost={oneWayTruckCost}
@@ -305,8 +325,6 @@ function SinglePageCalculator(props: {
   // packing
   needsPacking: boolean;
   setNeedsPacking: (v: boolean) => void;
-  packingCost: number;
-  setPackingCost: (v: number) => void;
 
   // truck rental
   penskeCity: string;
@@ -340,7 +358,6 @@ function SinglePageCalculator(props: {
     numWorkers, setNumWorkers,
     numLaborDays, setNumLaborDays,
     needsPacking, setNeedsPacking,
-    packingCost, setPackingCost,
     penskeCity, setPenskeCity,
     oneWayTruckCost, setOneWayTruckCost,
     truckDailyRate, setTruckDailyRate,
@@ -348,6 +365,14 @@ function SinglePageCalculator(props: {
     numReturnFlights, setNumReturnFlights,
     flightTicketRate, setFlightTicketRate
   } = props;
+
+  const [packingItems, setPackingItems] = useState(() => defaultPackingItems);
+
+  function updatePackingItem(idx: number, field: 'price' | 'quantity', val: number) {
+    setPackingItems(items =>
+      items.map((it, i) => (i === idx ? { ...it, [field]: val } : it))
+    );
+  }
 
   // We'll store the nearest airport name (e.g. "Los Angeles International Airport")
   const [nearestAirport, setNearestAirport] = useState('');
@@ -610,7 +635,9 @@ function SinglePageCalculator(props: {
       perDiemCost = drivingDays * perDiemRate;
     }
 
-    const packing = needsPacking ? packingCost : 0;
+    const packingTotal = needsPacking
+      ? packingItems.reduce((sum, it) => sum + it.price * it.quantity, 0)
+      : 0;
 
     let truckCost = 0;
     if (moveType === 'one-way') {
@@ -628,8 +655,9 @@ function SinglePageCalculator(props: {
     const baseToll = numTolls * 100;
     const tollCost = (moveType === 'round-trip') ? baseToll * 2 : baseToll;
 
-    const total = driverPay + fuelCost + laborCost + hotelCost + perDiemCost +
-      packing + truckCost + flightCost + tollCost;
+    const total =
+      driverPay + fuelCost + laborCost + hotelCost + perDiemCost +
+      packingTotal + truckCost + flightCost + tollCost;
 
     return {
       adjustedDriveHours,
@@ -639,7 +667,7 @@ function SinglePageCalculator(props: {
       laborCost,
       hotelCost,
       perDiemCost,
-      packingCost: packing,
+      packingCost: packingTotal,
       truckCost,
       flightCost,
       tollCost,
@@ -792,29 +820,45 @@ function SinglePageCalculator(props: {
       </div>
 
       {/* 2-col: Packing | Truck Rental */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Packing */}
-        <div className="border p-3 rounded space-y-2">
-          <h3 className="font-semibold text-black">Packing Supplies</h3>
-          <div className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              checked={needsPacking}
-              onChange={e => {
-                setNeedsPacking(e.target.checked);
-                if (!e.target.checked) setPackingCost(0);
-              }}
-            />
-            <span className="text-black">Needs packing supplies?</span>
-          </div>
-          {needsPacking && (
-            <NumberField
-              label="Packing Cost"
-              value={packingCost}
-              setValue={setPackingCost}
-            />
-          )}
+      <div className="border p-3 rounded space-y-2">
+        <h3 className="font-semibold text-black">Packing Supplies</h3>
+        <div className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            checked={needsPacking}
+            onChange={e => setNeedsPacking(e.target.checked)}
+          />
+          <span className="text-black">Needs packing supplies?</span>
         </div>
+
+        {needsPacking && (
+          <div className="space-y-3 mt-2">
+            {packingItems.map((item, idx) => (
+              <div key={item.name} className="grid grid-cols-3 gap-2 items-center">
+                <div className="text-black">{item.name}</div>
+                <div>
+                  <label className="block text-xs text-gray-600">Price</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="border border-gray-300 rounded w-full mt-1 p-1 text-black"
+                    value={item.price}
+                    onChange={e => updatePackingItem(idx, 'price', parseFloat(e.target.value) || 0)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600">Qty</label>
+                  <input
+                    type="number"
+                    className="border border-gray-300 rounded w-full mt-1 p-1 text-black"
+                    value={item.quantity}
+                    onChange={e => updatePackingItem(idx, 'quantity', parseInt(e.target.value) || 0)}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* One-Way or Round-Trip Truck Rental */}
         <div className="border p-3 rounded space-y-2">
