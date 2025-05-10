@@ -1,21 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-
-/** The shape of your lead data. Adjust as needed. */
-interface SmartMovingLead {
-  id: string;
-  customerName?: string;
-  status?: string;
-  originAddressFull?: string;
-  destinationAddressFull?: string;
-  originStreet?: string;
-  originCity?: string;
-  destinationStreet?: string;
-  destinationCity?: string;
-  branch?: string;
-  createdAt?: string;
-}
+import { SmartMovingLead } from '../services/smartMoving';
 
 type MoveType = 'one-way' | 'round-trip';
 
@@ -50,12 +36,13 @@ export default function DashboardPage() {
   const [leads, setLeads] = useState<SmartMovingLead[]>([]);
   const [loadingLeads, setLoadingLeads] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedLead, setSelectedLead] = useState<SmartMovingLead | null>(null);
 
   useEffect(() => {
     async function loadLeads() {
       try {
         setLoadingLeads(true);
-        const res = await fetch('/services'); // your Next.js route to fetch leads
+        const res = await fetch('/services'); 
         if (!res.ok) {
           throw new Error(`Failed to fetch leads. Status: ${res.status}`);
         }
@@ -118,6 +105,7 @@ export default function DashboardPage() {
 
     setPickup(pickupAddr);
     setDelivery(deliveryAddr);
+    setSelectedLead(lead);
     setView('calculator');
   }
 
@@ -236,6 +224,7 @@ export default function DashboardPage() {
                 setNumReturnFlights={setNumReturnFlights}
                 flightTicketRate={flightTicketRate}
                 setFlightTicketRate={setFlightTicketRate}
+                selectedLead={selectedLead}
               />
             </div>
           )}
@@ -341,6 +330,9 @@ function SinglePageCalculator(props: {
   setNumReturnFlights: (v: number) => void;
   flightTicketRate: number;
   setFlightTicketRate: (v: number) => void;
+
+  // Lead Id Traicking
+  selectedLead: SmartMovingLead | null;
 }) {
   const {
     moveType, setMoveType,
@@ -363,7 +355,8 @@ function SinglePageCalculator(props: {
     truckDailyRate, setTruckDailyRate,
     truckMileageRate, setTruckMileageRate,
     numReturnFlights, setNumReturnFlights,
-    flightTicketRate, setFlightTicketRate
+    flightTicketRate, setFlightTicketRate,
+    selectedLead,
   } = props;
 
   const [packingItems, setPackingItems] = useState(() => defaultPackingItems);
@@ -960,6 +953,31 @@ function SinglePageCalculator(props: {
               <span>Total</span>
               <span>${costs.total.toFixed(2)}</span>
             </div>
+            {/* Send back to SmartMoving */}
+            <div className="mt-4">
+            <button
+              disabled={!selectedLead}
+              onClick={async () => {
+                if (!selectedLead) return;
+                try {
+                  const res = await fetch('/services', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ lead: selectedLead, total: costs.total })
+                  });
+                  const json = await res.json();
+                  if (!json.ok) throw new Error(json.message);
+                  alert('✅ Total sent to SmartMoving!');
+                } catch (err) {
+                  console.error(err);
+                  alert('❌ Failed to send total');
+                }
+              }}
+              className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+            >
+              Send to SmartMoving
+            </button>
+            </div>
 
             {/* Extra info lines */}
             <div className="mt-2 text-sm text-black">
@@ -998,10 +1016,6 @@ function TextField({
   );
 }
 
-/**
- * A numeric input that allows the user to delete '0' 
- * without snapping back to '0'.
- */
 function NumberField({
   label,
   value,
