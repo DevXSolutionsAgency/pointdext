@@ -1,9 +1,12 @@
 import axios from 'axios';
 
-/* configuration */
+/* 1. Config */
 const SUBSCRIPTION_KEY  = '1d037767eef5447cb2a7557463c55d41';
 const BASE_URL          = 'https://api-public.smartmoving.com/v1/api';
-const DEFAULT_TARIFF_ID = 'd5e1d04b-fbc6-4af4-8c7a-af390151fdbf';   
+const DEFAULT_TARIFF_ID = 'd5e1d04b-fbc6-4af4-8c7a-af390151fdbf';
+
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY!;
+if (!GOOGLE_MAPS_API_KEY) throw new Error('GOOGLE_MAPS_API_KEY missing');
 
 const smartMovingApi = axios.create({
   baseURL: BASE_URL,
@@ -13,7 +16,23 @@ const smartMovingApi = axios.create({
   }
 });
 
-/*  shared types */
+/* 2. Shared helpers */
+interface Coord { lat: number; lng: number }
+
+/** Geocode any address/ZIP → { lat, lng } (ZIP centroids work fine). */
+async function geocodeAddress(address: string): Promise<Coord> {
+  const url = 'https://maps.googleapis.com/maps/api/geocode/json';
+  const { data } = await axios.get(url, {
+    params: { address, key: GOOGLE_MAPS_API_KEY }
+  });
+
+  if (data.status !== 'OK' || !data.results?.length) {
+    throw new Error(`Could not geocode "${address}" (${data.status})`);
+  }
+  return data.results[0].geometry.location;
+}
+
+/* 3. Types */
 interface PageViewModel<T> { pageResults: T[] }
 
 interface LeadViewModel {
@@ -29,11 +48,13 @@ interface LeadViewModel {
   type?: number;
   branchId: string;
   branchName: string;
+
   originAddressFull?: string;
   destinationAddressFull?: string;
   originStreet?: string; originCity?: string; originState?: string; originZip?: string;
   destinationStreet?: string; destinationCity?: string; destinationState?: string; destinationZip?: string;
-  customerId?: string;                 // present only after customer created
+
+  customerId?: string;
 }
 
 export interface SmartMovingLead {
@@ -59,15 +80,18 @@ export interface SmartMovingLead {
   salesPersonId?: string;
   type?: number;
 
-  customerId?: string;                 // populated later
-  tariffId?: string;                   // constant
+  customerId?: string;
+  tariffId?: string;
+
+  originLat?: number; originLng?: number;
+  destLat?: number;   destLng?: number;
 }
 
-/* response models  */
+/* Response models */
 export interface CreateOpportunityResponse { opportunityId?: string }
 export interface AddNoteResponse          { noteId?: string }
 
-/* helpers */
+/* 4. Static look‑ups & util functions */
 const REFERRAL_SOURCES: Record<string, string> = {
   'Anthony Referral Source' : 'b07edcb6-a81a-4149-8135-afa9016c4988',
   'Bing'                    : '5b135242-3ddc-4397-a16b-afbf015f0a2d',
@@ -88,7 +112,6 @@ const REFERRAL_SOURCES: Record<string, string> = {
   'Truck'                   : '0bd0e0bf-9f19-4f16-8c4f-af3f0148f57f',
   'Yelp'                    : '5997514b-8d2c-493c-87f7-af39015b444e'
 };
-
 const DEFAULT_REFERRAL_SOURCE_ID = '8be56ab1-46c1-4b55-9a2f-afbf015eff26';
 
 const isValidGuid = (v = '') =>
@@ -97,12 +120,10 @@ const isValidGuid = (v = '') =>
 const buildNotes = (total: number) =>
   `PointDex calculator total: $${total.toFixed(2)}`;
 
-/*  smartMovingService */
 
+/* 5. smartMovingService                                                     */
 export const smartMovingService = {
-  
-  /* 1) Lead list  */
-
+  /* 5.1 Lead list */
   async getLeads(page = 1, pageSize = 25): Promise<SmartMovingLead[]> {
     const { data } = await smartMovingApi.get<PageViewModel<LeadViewModel>>(
       '/leads',
@@ -128,12 +149,12 @@ export const smartMovingService = {
       moveSizeId       : raw.moveSizeId,
       salesPersonId    : raw.salesPersonId,
       type             : raw.type,
-      customerId       : raw.customerId,      
+      customerId       : raw.customerId,
       tariffId         : DEFAULT_TARIFF_ID
     }));
   },
 
-  /* 2)  Fetch missing details for a single lead */
+  /* 5.2 Fetch single lead details */
   async fetchLeadDetail(id: string): Promise<Partial<SmartMovingLead>> {
     try {
       const { data } = await smartMovingApi.get<LeadViewModel>(`/leads/${id}`);
@@ -144,7 +165,13 @@ export const smartMovingService = {
         type          : data.type,
         emailAddress  : data.emailAddress,
         phoneNumber   : data.phoneNumber,
-        phoneType     : data.phoneType
+        phoneType     : data.phoneType,
+        originAddressFull      : data.originAddressFull,
+        destinationAddressFull : data.destinationAddressFull,
+        originStreet  : data.originStreet,  originCity : data.originCity,
+        originState   : data.originState,   originZip  : data.originZip,
+        destinationStreet : data.destinationStreet, destinationCity : data.destinationCity,
+        destinationState  : data.destinationState,  destinationZip  : data.destinationZip
       };
     } catch (err) {
       console.warn(`Could not fetch details for lead ${id}`, err);
@@ -152,7 +179,7 @@ export const smartMovingService = {
     }
   },
 
-  /* 3)  Create a customer  */
+  /* 5.3 Create customer */
   async createCustomer(lead: SmartMovingLead): Promise<string> {
     const body = {
       name        : lead.customerName ?? 'PointDex Customer',
@@ -173,33 +200,42 @@ export const smartMovingService = {
     return customerId;
   },
 
-  /* 4)  Convert ➜ add note */
+  /* 5.4 Convert lead ➜ opportunity & add note */
   async convertLeadAndAddNote(
     lead: SmartMovingLead,
     total: number
   ): Promise<{ opportunityId: string; noteId: string }> {
 
-    /* ensure we have everything */
+    /* enrich lead with missing fields */
     let enriched: SmartMovingLead = lead;
-
     if (!lead.customerId || !lead.moveSizeId || !lead.salesPersonId) {
       const extra = await this.fetchLeadDetail(lead.id);
       enriched = { ...lead, ...extra };
     }
 
-    /* if still no customer → create one */
+    /* ensure customer exists */
     if (!enriched.customerId) {
       enriched.customerId = await this.createCustomer(enriched);
     }
 
-    /* sanity‑check mandatory fields */
-    if (!enriched.moveSizeId)
-      throw new Error('Lead is missing moveSizeId – cannot convert.');
-    if (!enriched.salesPersonId)
-      throw new Error('Lead is missing salesPersonId – cannot convert.');
+    /* geocode ZIP‑only addresses to coords */
+    if (enriched.originAddressFull && !enriched.originLat) {
+      try {
+        const { lat, lng } = await geocodeAddress(enriched.originAddressFull);
+        enriched.originLat = lat;
+        enriched.originLng = lng;
+      } catch {}
+    }
+    if (enriched.destinationAddressFull && !enriched.destLat) {
+      try {
+        const { lat, lng } = await geocodeAddress(enriched.destinationAddressFull);
+        enriched.destLat = lat;
+        enriched.destLng = lng;
+      } catch {}
+    }
 
     /* build convert payload */
-    const convertBody = {
+    const convertBody: any = {
       customerId      : enriched.customerId,
       referralSourceId: isValidGuid(enriched.referralSourceId)
         ? enriched.referralSourceId
@@ -207,13 +243,45 @@ export const smartMovingService = {
            DEFAULT_REFERRAL_SOURCE_ID),
       tariffId        : DEFAULT_TARIFF_ID,
       branchId        : enriched.branchId,
-      moveDate        : new Date().toISOString().slice(0, 10), // yyyy‑MM‑dd
-      moveSizeId      : enriched.moveSizeId,
-      salesPersonId   : enriched.salesPersonId,
-      serviceTypeId   : enriched.type ?? 1                      // 1 = Moving
+      moveDate        : new Date().toISOString().slice(0, 10),
+      moveSizeId      : enriched.moveSizeId!,
+      salesPersonId   : enriched.salesPersonId!,
+      serviceTypeId   : enriched.type ?? 1
     };
 
-    /* step A: convert lead */
+    /* attach origin address block */
+    if (enriched.originAddressFull) {
+      const isZipOnly = /^\d{5}$/.test(enriched.originAddressFull.trim());
+      convertBody.originAddress = {
+        fullAddress : enriched.originAddressFull,
+        street      : enriched.originStreet  ?? undefined,
+        city        : enriched.originCity    ?? undefined,
+        state       : enriched.originState   ?? undefined,
+        zip         : enriched.originZip
+          ?? (isZipOnly ? enriched.originAddressFull : undefined),
+        lat         : enriched.originLat ?? 0,
+        lng         : enriched.originLng ?? 0,
+        country     : 'US'
+      };
+    }
+
+    /* attach destination address block */
+    if (enriched.destinationAddressFull) {
+      const isZipOnly = /^\d{5}$/.test(enriched.destinationAddressFull.trim());
+      convertBody.destinationAddress = {
+        fullAddress : enriched.destinationAddressFull,
+        street      : enriched.destinationStreet ?? undefined,
+        city        : enriched.destinationCity   ?? undefined,
+        state       : enriched.destinationState  ?? undefined,
+        zip         : enriched.destinationZip
+          ?? (isZipOnly ? enriched.destinationAddressFull : undefined),
+        lat         : enriched.destLat ?? 0,
+        lng         : enriched.destLng ?? 0,
+        country     : 'US'
+      };
+    }
+
+    /* step A: convert */
     const { data: conv } =
       await smartMovingApi.put<CreateOpportunityResponse>(
         `/premium/lead/${enriched.id}/convert`,
@@ -223,7 +291,7 @@ export const smartMovingService = {
     if (!conv.opportunityId)
       throw new Error('SmartMoving did not return an opportunityId');
 
-    /* step B: add calculator note */
+    /* step B: add note */
     const { data: note } =
       await smartMovingApi.post<AddNoteResponse>(
         `/premium/opportunities/${conv.opportunityId}/communication/notes`,
