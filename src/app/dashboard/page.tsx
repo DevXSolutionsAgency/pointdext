@@ -367,146 +367,8 @@ function SinglePageCalculator(props: {
     );
   }
 
-  // We'll store the nearest airport name (e.g. "Los Angeles International Airport")
-  const [nearestAirport, setNearestAirport] = useState('');
-
-  /**
-   * A dictionary of major US international airports in lowercase -> IATA code.
-   * For example, if Google returns "Los Angeles International Airport" in nearestAirport,
-   * we do "los angeles international airport" -> "LAX".
-   */
-  const airportNameToIATA: Record<string, string> = {
-    'hartsfield-jackson atlanta international airport': 'ATL',
-    'los angeles international airport': 'LAX',
-    'chicago o\'hare international airport': 'ORD',
-    'dallas/fort worth international airport': 'DFW',
-    'denver international airport': 'DEN',
-    'john f. kennedy international airport': 'JFK',
-    'san francisco international airport': 'SFO',
-    'seattle-tacoma international airport': 'SEA',
-    'miami international airport': 'MIA',
-    'orlando international airport': 'MCO',
-    'newark liberty international airport': 'EWR',
-    'houston george bush intercontinental airport': 'IAH',
-    'washington dulles international airport': 'IAD',
-    'boston logan international airport': 'BOS',
-    'detroit metropolitan wayne county airport': 'DTW',
-    'charlotte douglas international airport': 'CLT',
-    'philadelphia international airport': 'PHL',
-    'minneapolis–saint paul international airport': 'MSP',
-    'fort lauderdale–hollywood international airport': 'FLL',
-    'salt lake city international airport': 'SLC',
-    'washington ronald reagan national airport': 'DCA',
-    'chicago midway international airport': 'MDW',
-    'tampa international airport': 'TPA',
-    'portland international airport': 'PDX',
-    'honolulu daniel k. inouye international airport': 'HNL',
-    'st. louis lambert international airport': 'STL',
-    'nashville international airport': 'BNA',
-    'austin–bergstrom international airport': 'AUS',
-    'indianapolis international airport': 'IND',
-    'san diego international airport': 'SAN',
-    'kansas city international airport': 'MCI',
-    'sacramento international airport': 'SMF',
-    'san antonio international airport': 'SAT',
-    'pittsburgh international airport': 'PIT',
-    'raleigh–durham international airport': 'RDU',
-    'cleveland hopkins international airport': 'CLE',
-    'cincinnati/northern kentucky international airport': 'CVG',
-    'jacksonville international airport': 'JAX',
-    'memphis international airport': 'MEM',
-    'louisville muhammad ali international airport': 'SDF',
-    'milwaukee mitchell international airport': 'MKE',
-    'new orleans louis armstrong international airport': 'MSY',
-    'baltimore/washington international thurgood marshall airport': 'BWI',
-    'anchorage ted stevens international airport': 'ANC',
-    'albuquerque international sunport': 'ABQ',
-    'omaha eppley airfield': 'OMA',
-    'buffalo niagara international airport': 'BUF',
-    'richmond international airport': 'RIC',
-    'boise airport': 'BOI',
-    'birmingham-shuttlesworth international airport': 'BHM',
-    'hartford bradley international airport': 'BDL',
-    'columbus john glenn international airport': 'CMH',
-    'ontario international airport': 'ONT',
-    'palm beach international airport': 'PBI',
-    'sarasota–bradenton international airport': 'SRQ',
-    'charleston international airport': 'CHS',
-    'greenville–spartanburg international airport': 'GSP',
-    'myrtle beach international airport': 'MYR',
-    'hilton head airport': 'HHH',
-    'savannah/hilton head international airport': 'SAV',
-    'pensacola international airport': 'PNS',
-    'key west international airport': 'EYW',
-    'gulfport–biloxi international airport': 'GPT',
-    'jackson–medgar wiley evers international airport': 'JAN',
-    'burlington international airport': 'BTV',
-    'manchester–boston regional airport': 'MHT',
-    'tucson international airport': 'TUS',
-    'el paso international airport': 'ELP',
-    'lubbock preston smith international airport': 'LBB',
-    'midland international air and space port': 'MAF',
-    'eugene airport': 'EUG',
-    'rogue valley international–medford airport': 'MFR',
-    'spokane international airport': 'GEG',
-    'bozeman yellowstone international airport': 'BZN',
-    'missoula international airport': 'MSO',
-    'billings logan international airport': 'BIL',
-    'fargo hector international airport': 'FAR',
-    'grand forks international airport': 'GFK',
-    'sioux falls regional airport': 'FSD',
-    'rapid city regional airport': 'RAP',
-    'des moines international airport': 'DSM',
-    'cedar rapids eastern iowa airport': 'CID',
-    'wichita dwight d. eisenhower national airport': 'ICT',
-    'lexington blue grass airport': 'LEX',
-    'newport news/williamsburg international airport': 'PHF',
-    'norfolk international airport': 'ORF',
-    'roanoke–blacksburg regional airport': 'ROA',
-    'syracuse hancock international airport': 'SYR',
-    'albany international airport': 'ALB',
-    'rochester international airport': 'RST',
-    'green bay austin straubel international airport': 'GRB',
-    'madison dane county regional airport': 'MSN',
-    'appleton international airport': 'ATW',
-    'grand rapids gerald r. ford international airport': 'GRR',
-    'flint bishop international airport': 'FNT',
-    'kalamazoo/battle creek international airport': 'AZO',
-    'cherry capital airport': 'TVC',
-    'little rock clinton national airport': 'LIT',
-    'oklahoma city will rogers world airport': 'OKC',
-    'tulsa international airport': 'TUL',
-    'springfield–branson national airport': 'SGF',
-    'columbia metropolitan airport': 'CAE',
-    'montgomery regional airport': 'MGM',
-    'huntsville international airport': 'HSV',
-    'mobile regional airport': 'MOB',
-    'gainesville regional airport': 'GNV',
-    'fort myers southwest florida international airport': 'RSW',
-    'fort wayne international airport': 'FWA',
-    'south bend international airport': 'SBN',
-    'peoria general wayne a. downing peoria international airport': 'PIA',
-    'quad city international airport': 'MLI',
-    'lincoln airport': 'LNK',
-    'eppley airfield': 'OMA',
-    'sioux gateway airport': 'SUX',
-    'cheyenne regional airport': 'CYS',
-    'jackson hole airport': 'JAC',
-    'idaho falls regional airport': 'IDA',
-  }
-
-  /** Convert a google returned name (nearestAirport) -> IATA code. */
-  function getIataCodeFromName(name: string): string {
-    const lower = name.toLowerCase();
-    // We'll do an exact "includes" check for each key in the dictionary
-    for (const knownName in airportNameToIATA) {
-      if (lower.includes(knownName)) {
-        return airportNameToIATA[knownName];
-      }
-    }
-    // fallback
-    return 'JFK';
-  }
+  const [nearestAirportName, setNearestAirportName] = useState('');
+  const [nearestAirportCode, setNearestAirportCode] = useState('');
 
   // 1) Handle distance calc
   async function handleDistanceCalc() {
@@ -539,16 +401,20 @@ function SinglePageCalculator(props: {
       }
 
       // { distance, duration, tolls, nearestAirport }
-      const { distance, duration, tolls, nearestAirport: googleAirport } = data.data;
+      const { distance, duration, tolls,
+        nearestAirportName: apName,
+        nearestAirportCode: apCode } = data.data;
 
       setTotalMiles(distance);
       setGpsDriveHours(duration / 60);
       setNumTolls(tolls);
 
-      if (moveType === 'one-way' && googleAirport) {
-        setNearestAirport(googleAirport);
+      if (moveType === 'one-way' && apName && apCode) {
+        setNearestAirportName(apName);
+        setNearestAirportCode(apCode);
       } else {
-        setNearestAirport('');
+        setNearestAirportName('');
+        setNearestAirportCode('');
       }
 
       alert(`Route = ${distance.toFixed(1)} miles, ~${(duration / 60).toFixed(1)} hours\nTolls: ${tolls}`);
@@ -560,15 +426,13 @@ function SinglePageCalculator(props: {
 
   // 2) Handle check flight price: calls /api/calculate-flight
   async function handleCheckFlightPrice() {
-    if (!nearestAirport) {
-      alert('No nearest airport found. Please run "Calculate Distance" first.');
+    if (!nearestAirportCode) {
+      alert('No nearest airport found…');
       return;
     }
-    // convert to code
-    const originCode = getIataCodeFromName(nearestAirport);
 
-    // departure date = tomorrow
-    const tomorrow = new Date();
+    const originCode = nearestAirportCode;       
+    const tomorrow   = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const depStr = tomorrow.toISOString().split('T')[0];
 
@@ -576,14 +440,15 @@ function SinglePageCalculator(props: {
 
     try {
       const res = await fetch('/api/calculate-flight', {
-        method: 'POST',
+        method : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          originAirport: originCode,
-          departureDate: depStr,
+        body   : JSON.stringify({
+          originAirport       : originCode,
+          departureDate       : depStr,
           adults
         })
       });
+
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || 'Failed to fetch flight price');
@@ -594,15 +459,15 @@ function SinglePageCalculator(props: {
       }
 
       const flightPrice = data.flightPrice;
-      // update flightTicketRate
       setFlightTicketRate(flightPrice);
 
-      alert(`Found flight from ${originCode} -> PHX for ~$${flightPrice}. Updated flightTicketRate.`);
+      alert(`Found flight from ${originCode} → PHX for ~$${flightPrice}. Updated ticket rate.`);
     } catch (err: any) {
       alert(`Amadeus flight error: ${err.message}`);
       console.error(err);
     }
   }
+
 
   // 3) Summarize cost
   function calculateCost() {
@@ -710,18 +575,16 @@ function SinglePageCalculator(props: {
       </div>
 
       {/* If one-way, show nearest airport read-only + "Check Flight Price" */}
-      {moveType === 'one-way' && nearestAirport && (
+      {moveType === 'one-way' && nearestAirportName && (
         <div className="border p-3 rounded space-y-2">
           <label className="block text-black mb-2">
-            <span className="font-medium">Nearest Airport (auto-filled):</span>
+            <span className="font-medium">Nearest Airport:</span>
             <input
-              type="text"
               readOnly
-              className="border border-gray-300 rounded w-full mt-1 p-2 text-black bg-gray-50"
-              value={nearestAirport}
+              value={`${nearestAirportName} (${nearestAirportCode})`}
+              className="border border-gray-300 rounded w-full mt-1 p-2 bg-gray-50 text-black"
             />
           </label>
-          {/* Button to check flight price from nearestAirport -> PHX */}
           <button
             onClick={handleCheckFlightPrice}
             className="px-4 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600"
