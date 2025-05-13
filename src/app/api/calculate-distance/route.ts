@@ -85,7 +85,7 @@ async function nearestAirport(c:Coord):Promise<{name:string;code:string}>{
       params :{
         latitude : c.lat.toFixed(6),
         longitude: c.lng.toFixed(6),
-        radius   : 350, //km
+        radius   : 100, //km
         'page[limit]': 5
       }
     }
