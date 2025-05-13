@@ -115,7 +115,7 @@ export default function DashboardPage() {
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <h1 className="text-2xl font-bold bg-gradient-to-r from-red-600 to-pink-600 bg-clip-text text-transparent">
-            PointDex Quote Calculator
+            PoinDexter Quote Calculator
           </h1>
         </div>
       </header>
