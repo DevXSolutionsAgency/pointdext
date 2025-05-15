@@ -94,7 +94,7 @@ export default function DashboardPage() {
   const [truckMileageRate, setTruckMileageRate] = useState(0.3);
 
   const [numReturnFlights, setNumReturnFlights] = useState(2);
-  const [flightTicketRate, setFlightTicketRate] = useState(500);
+  const [flightTicketRate, setFlightTicketRate] = useState(0);
 
   // 4) Import leads -> set pickup/delivery, switch to calculator
   function handleImportLead(lead: SmartMovingLead) {
@@ -115,7 +115,7 @@ export default function DashboardPage() {
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <h1 className="text-2xl font-bold bg-gradient-to-r from-red-600 to-pink-600 bg-clip-text text-transparent">
-            PoinDexter Quote Calculator
+            Poindexter Quote Calculator
           </h1>
         </div>
       </header>
@@ -136,38 +136,69 @@ export default function DashboardPage() {
           {(view === 'split' || view === 'leads') && (
             <div className="bg-white p-4 rounded-md shadow flex flex-col">
               <h2 className="text-xl font-bold text-black mb-4">Leads</h2>
+
               {loadingLeads ? (
                 <p className="text-black">Loading leads...</p>
               ) : error ? (
                 <p className="text-red-600">{error}</p>
               ) : (
-                <table className="min-w-full border text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-3 py-2 border text-black">Name</th>
-                      <th className="px-3 py-2 border text-black">Origin</th>
-                      <th className="px-3 py-2 border text-black">Destination</th>
-                      <th className="px-3 py-2 border text-black">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {leads.map(lead => (
-                      <tr key={lead.id} className="hover:bg-gray-50">
-                        <td className="px-3 py-2 border text-black">{lead.customerName || 'N/A'}</td>
-                        <td className="px-3 py-2 border text-black">{lead.originAddressFull || 'N/A'}</td>
-                        <td className="px-3 py-2 border text-black">{lead.destinationAddressFull || 'N/A'}</td>
-                        <td className="px-3 py-2 border text-black">
-                          <button
-                            onClick={() => handleImportLead(lead)}
-                            className="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700"
-                          >
-                            Import
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <>
+                  {/* Leads table – modern, border-less look */}
+                  <div className="overflow-x-auto">
+                    <div className="overflow-hidden shadow ring-1 ring-gray-200 md:rounded-lg">
+                      <table className="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                              Name
+                            </th>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                              Origin
+                            </th>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                              Destination
+                            </th>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
+
+                        <tbody className="divide-y divide-gray-200 bg-white">
+                          {leads.map((lead) => (
+                            <tr key={lead.id} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
+                                {lead.customerName ?? 'N/A'}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-gray-700">
+                                {lead.originAddressFull ?? 'N/A'}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-gray-700">
+                                {lead.destinationAddressFull ?? 'N/A'}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <button
+                                  onClick={() => handleImportLead(lead)}
+                                  className="inline-flex items-center rounded-md bg-gradient-to-r from-gray-400 to-gray-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:from-red-600 hover:to-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                                >
+                                  Import
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+
+                          {leads.length === 0 && (
+                            <tr>
+                              <td colSpan={4} className="px-6 py-4 text-center text-gray-500">
+                                No leads found
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -574,26 +605,6 @@ function SinglePageCalculator(props: {
         </div>
       </div>
 
-      {/* If one-way, show nearest airport read-only + "Check Flight Price" */}
-      {moveType === 'one-way' && nearestAirportName && (
-        <div className="border p-3 rounded space-y-2">
-          <label className="block text-black mb-2">
-            <span className="font-medium">Nearest Airport:</span>
-            <input
-              readOnly
-              value={`${nearestAirportName} (${nearestAirportCode})`}
-              className="border border-gray-300 rounded w-full mt-1 p-2 bg-gray-50 text-black"
-            />
-          </label>
-          <button
-            onClick={handleCheckFlightPrice}
-            className="px-4 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600"
-          >
-            Check Flight Price via Amadeus
-          </button>
-        </div>
-      )}
-
       {/* Addresses */}
       <div className="border p-3 rounded space-y-3">
         <h3 className="font-semibold text-black">Addresses</h3>
@@ -675,48 +686,69 @@ function SinglePageCalculator(props: {
         </div>
       </div>
 
-      {/* 2-col: Packing | Truck Rental */}
-      <div className="border p-3 rounded space-y-2">
-        <h3 className="font-semibold text-black">Packing Supplies</h3>
-        <div className="flex items-center space-x-2">
-          <input
-            type="checkbox"
-            checked={needsPacking}
-            onChange={e => setNeedsPacking(e.target.checked)}
-          />
-          <span className="text-black">Needs packing supplies?</span>
+      {/* 2-col: Packing Supplies | Truck Rental */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Packing Supplies */}
+        <div className="border p-3 rounded space-y-2">
+          <h3 className="font-semibold text-black">Packing Supplies</h3>
+
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              checked={needsPacking}
+              onChange={(e) => setNeedsPacking(e.target.checked)}
+            />
+            <span className="text-black">Needs packing supplies?</span>
+          </div>
+
+          {needsPacking && (
+            <div className="space-y-3 mt-2">
+              {packingItems.map((item, idx) => (
+                <div
+                  key={item.name}
+                  className="grid grid-cols-3 gap-2 items-center"
+                >
+                  <div className="text-black">{item.name}</div>
+
+                  <div>
+                    <label className="block text-xs text-gray-600">Price</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="mt-1 w-full rounded border border-gray-300 p-1 text-black"
+                      value={item.price}
+                      onChange={(e) =>
+                        updatePackingItem(
+                          idx,
+                          'price',
+                          parseFloat(e.target.value) || 0,
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-gray-600">Qty</label>
+                    <input
+                      type="number"
+                      className="mt-1 w-full rounded border border-gray-300 p-1 text-black"
+                      value={item.quantity}
+                      onChange={(e) =>
+                        updatePackingItem(
+                          idx,
+                          'quantity',
+                          parseInt(e.target.value) || 0,
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {needsPacking && (
-          <div className="space-y-3 mt-2">
-            {packingItems.map((item, idx) => (
-              <div key={item.name} className="grid grid-cols-3 gap-2 items-center">
-                <div className="text-black">{item.name}</div>
-                <div>
-                  <label className="block text-xs text-gray-600">Price</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="border border-gray-300 rounded w-full mt-1 p-1 text-black"
-                    value={item.price}
-                    onChange={e => updatePackingItem(idx, 'price', parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-600">Qty</label>
-                  <input
-                    type="number"
-                    className="border border-gray-300 rounded w-full mt-1 p-1 text-black"
-                    value={item.quantity}
-                    onChange={e => updatePackingItem(idx, 'quantity', parseInt(e.target.value) || 0)}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* One-Way or Round-Trip Truck Rental */}
+        {/* Truck Rental */}
         <div className="border p-3 rounded space-y-2">
           {moveType === 'one-way' ? (
             <>
@@ -753,12 +785,34 @@ function SinglePageCalculator(props: {
         </div>
       </div>
 
-      {/* 2-col: Return Flights (if one-way) | Driver Hourly Rates */}
+      {/* Return Flights & Driver Rates (two-column) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Plane Tickets (One-Way Only) */}
+        {/* Return Flights (one-way only) */}
         {moveType === 'one-way' && (
-          <div className="border p-3 rounded space-y-2">
+          <div className="border p-3 rounded space-y-3">
             <h3 className="font-semibold text-black">Return Flights</h3>
+
+            {/* Nearest airport + Amadeus lookup */}
+            {nearestAirportName && (
+              <div className="space-y-2">
+                <label className="block text-black">
+                  <span className="font-medium">Nearest Airport:</span>
+                  <input
+                    readOnly
+                    value={`${nearestAirportName} (${nearestAirportCode})`}
+                    className="mt-1 w-full rounded border border-gray-300 bg-gray-50 p-2 text-black"
+                  />
+                </label>
+
+                <button
+                  onClick={handleCheckFlightPrice}
+                  className="w-full rounded bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600"
+                >
+                  Get Flight Price
+                </button>
+              </div>
+            )}
+
             <NumberField
               label="How many guys flying back?"
               value={numReturnFlights}
