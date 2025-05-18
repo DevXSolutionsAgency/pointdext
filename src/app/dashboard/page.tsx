@@ -71,7 +71,7 @@ export default function DashboardPage() {
   const [gpsDriveHours, setGpsDriveHours] = useState(0);
   const [numTolls, setNumTolls] = useState(0);
 
-  const [gasPrice, setGasPrice] = useState(3.5);
+  const [gasPrice, setGasPrice] = useState(5);
   const [laborRate, setLaborRate] = useState(300);
 
   // Toggle for hotel/per diem
@@ -134,7 +134,7 @@ export default function DashboardPage() {
         <div className={view === 'split' ? 'grid grid-cols-1 lg:grid-cols-2 gap-6 h-full' : 'h-full'}>
           {/* LEFT: Leads */}
           {(view === 'split' || view === 'leads') && (
-            <div className="bg-white p-4 rounded-md shadow flex flex-col">
+            <div className="bg-white p-4 rounded-md shadow flex flex-col h-full">
               <h2 className="text-xl font-bold text-black mb-4">Leads</h2>
 
               {loadingLeads ? (
@@ -142,63 +142,65 @@ export default function DashboardPage() {
               ) : error ? (
                 <p className="text-red-600">{error}</p>
               ) : (
-                <>
-                  {/* Leads table – modern, border-less look */}
-                  <div className="overflow-x-auto">
-                    <div className="overflow-hidden shadow ring-1 ring-gray-200 md:rounded-lg">
-                      <table className="min-w-full divide-y divide-gray-200 text-sm">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                              Name
-                            </th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                              Origin
-                            </th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                              Destination
-                            </th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                              Actions
-                            </th>
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  <div className="shadow ring-1 ring-gray-200 md:rounded-lg">
+                    <table className="min-w-full table-fixed divide-y divide-gray-200 text-sm">
+                      {/* all <col> tags on ONE line → no whitespace text nodes */}
+                      <colgroup><col className="w-40"/><col className="w-60"/><col className="w-60"/><col className="w-28"/></colgroup>
+
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                            Name
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                            Origin
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                            Destination
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+
+                      <tbody className="divide-y divide-gray-200 bg-white">
+                        {leads.map((lead) => (
+                          <tr key={lead.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-900">
+                              {lead.customerName ?? 'N/A'}
+                            </td>
+
+                            <td className="px-4 py-3 truncate text-gray-700">
+                              {lead.originAddressFull ?? 'N/A'}
+                            </td>
+                            <td className="px-4 py-3 truncate text-gray-700">
+                              {lead.destinationAddressFull ?? 'N/A'}
+                            </td>
+
+                            <td className="px-4 py-3">
+                              <button
+                                onClick={() => handleImportLead(lead)}
+                                className="inline-flex items-center rounded-md bg-gradient-to-r from-gray-400 to-gray-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:from-red-600 hover:to-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                              >
+                                Import
+                              </button>
+                            </td>
                           </tr>
-                        </thead>
+                        ))}
 
-                        <tbody className="divide-y divide-gray-200 bg-white">
-                          {leads.map((lead) => (
-                            <tr key={lead.id} className="hover:bg-gray-50 transition-colors">
-                              <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
-                                {lead.customerName ?? 'N/A'}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-gray-700">
-                                {lead.originAddressFull ?? 'N/A'}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-gray-700">
-                                {lead.destinationAddressFull ?? 'N/A'}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <button
-                                  onClick={() => handleImportLead(lead)}
-                                  className="inline-flex items-center rounded-md bg-gradient-to-r from-gray-400 to-gray-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:from-red-600 hover:to-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                                >
-                                  Import
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-
-                          {leads.length === 0 && (
-                            <tr>
-                              <td colSpan={4} className="px-6 py-4 text-center text-gray-500">
-                                No leads found
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
+                        {leads.length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
+                              No leads found
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
-                </>
+                </div>
               )}
             </div>
           )}
@@ -464,7 +466,7 @@ function SinglePageCalculator(props: {
 
     const originCode = nearestAirportCode;       
     const tomorrow   = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setDate(tomorrow.getDate() + 5);
     const depStr = tomorrow.toISOString().split('T')[0];
 
     const adults = numReturnFlights || 1;
