@@ -10,7 +10,7 @@ export default function Home() {
       <div className="w-full md:w-1/2 p-8 flex flex-col items-center justify-center">
         <div className="max-w-md text-center md:text-left">
           <h1 className="text-4xl md:text-5xl font-extrabold mb-4 bg-gradient-to-r from-red-600 to-pink-600 bg-clip-text text-transparent">
-            PointDex Quote Calculator
+            Poindexter Quote Calculator
           </h1>
           <p className="text-gray-600 text-lg mb-6">
             Your intelligent solution for precise and efficient quote calculations

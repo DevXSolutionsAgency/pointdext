@@ -1,1093 +1,992 @@
-// src/app/dashboard/page.tsx
-'use client'; // Mark this as a Client Component
-import { useUser, useClerk } from '@clerk/nextjs';
-import { useState, useEffect } from 'react';
-import { smartMovingService, SmartMovingLead } from '../services/smartMoving';
+'use client';
 
-type OppStatus = 'New' | 'Contacted' | 'Qualified' | 'Lost' | 'Won';
+import { useEffect, useState } from 'react';
+import { SmartMovingLead } from '../services/smartMoving';
 
-// Calculator types
 type MoveType = 'one-way' | 'round-trip';
-type CalculatorStep = 
-  | 'move-type'
-  | 'addresses'
-  | 'loading-labor'
-  | 'packing'
-  | 'truck-rental'
-  | 'plane-tickets'
-  | 'review';
 
-type AddressKey = 'warehouse' | 'pickup' | 'delivery';
+const defaultPackingItems = [
+  { name: 'Small Box',          price: 3.25,  quantity: 0 },
+  { name: 'Medium Box',         price: 4.25,  quantity: 0 },
+  { name: 'Large Box',          price: 5.25,  quantity: 0 },
+  { name: 'Dish Box',           price: 10,    quantity: 0 },
+  { name: 'Dish Pack Inserts',  price: 12,    quantity: 0 },
+  { name: 'TV Box',             price: 25,    quantity: 0 },
+  { name: 'Wardrobe Box',       price: 20,    quantity: 0 },
+  { name: 'Mattress Bag (King)',price: 15,    quantity: 0 },
+  { name: 'Speed Pack',         price: 60,    quantity: 0 },
+  { name: 'Paper Pad (Brown)',  price: 3,     quantity: 0 },
+  { name: 'Packing Paper (200)',price: 40,    quantity: 0 },
+  { name: 'Furniture Pad',      price: 20,    quantity: 0 },
+  { name: '4 Pack Mirror Carton',price:25,    quantity: 0 },
+  { name: 'Lamp Box',           price: 5,     quantity: 0 },
+  { name: 'Piano Board',        price: 200,   quantity: 0 },
+  { name: 'Straps/Tie Downs',   price: 10,    quantity: 0 },
+  { name: 'Floor Protection',   price: 100,   quantity: 0 },
+  { name: 'Mattress Box',       price: 45,    quantity: 0 },
+  { name: 'Pre Move Package',   price: 100,   quantity: 0 },
+  { name: 'French Cleat',       price: 20,    quantity: 0 },
+];
 
-interface Address {
-  street: string;
-  city: string;
-  state: string;
-  zip: string;
-}
+export default function DashboardPage() {
+  // 1) Which view to show?
+  const [view, setView] = useState<'split' | 'leads' | 'calculator'>('split');
 
-interface CalculatorState {
-  moveType: MoveType | null;
-  addresses: {
-    warehouse: Address;
-    pickup: Address;
-    delivery: Address;
-    airport?: Address;
-  };
-  distances: {
-    totalMiles: number;
-    drivingHours: number;
-    drivingDays: number;
-  };
-  loading: {
-    workers: number;
-    days: number;
-  };
-  needsPacking: boolean;
-  packingCost: number;
-  truckRental: {
-    cost: number;
-    days: number;
-  };
-  returnFlights: number;
-  tolls: number;
-  adjustments: {
-    driverHourlyRate: number;
-    gasPrice: number;
-    workerDailyRate: number;
-    hotelRate: number;
-    perDiemRate: number;
-    truckDailyRate: number;
-    truckMileageRate: number;
-    flightTicketRate: number;
-  };
-}
+  // 2) Leads table state
+  const [leads, setLeads] = useState<SmartMovingLead[]>([]);
+  const [loadingLeads, setLoadingLeads] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedLead, setSelectedLead] = useState<SmartMovingLead | null>(null);
 
-interface AdjustmentModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  adjustments: CalculatorState['adjustments'];
-  onSave: (newAdjustments: CalculatorState['adjustments']) => void;
-}
+  useEffect(() => {
+    async function loadLeads() {
+      try {
+        setLoadingLeads(true);
+        const res = await fetch('/services'); 
+        if (!res.ok) {
+          throw new Error(`Failed to fetch leads. Status: ${res.status}`);
+        }
+        const data: SmartMovingLead[] = await res.json();
+        setLeads(data);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching leads:', err);
+        setError('Failed to load leads');
+      } finally {
+        setLoadingLeads(false);
+      }
+    }
+    loadLeads();
+  }, []);
 
-// Common styles
-const commonStyles = {
-  input: "mt-1 block w-full border-2 border-red-200 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500 text-gray-900 placeholder-gray-500",
-  inputWithPrefix: "mt-1 block w-full pl-7 border-2 border-red-200 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500 text-gray-900 placeholder-gray-500",
-  label: "block text-sm font-medium text-gray-900",
-  costDisplay: "bg-gray-50 rounded-lg p-4 border-2 border-red-200"
-};
+  // 3) Calculator states
+  const [moveType, setMoveType] = useState<MoveType>('one-way');
 
-function AdjustmentModal({ isOpen, onClose, adjustments, onSave }: AdjustmentModalProps) {
-  const [localAdjustments, setLocalAdjustments] = useState(adjustments);
+  const [warehouseStart, setWarehouseStart] = useState('3045 S 46th St, Phoenix AZ 85040');
+  const [warehouseReturn, setWarehouseReturn] = useState('3045 S 46th St, Phoenix AZ 85040');
+  const [pickup, setPickup] = useState('');
+  const [delivery, setDelivery] = useState('');
 
-  if (!isOpen) return null;
+  const [totalMiles, setTotalMiles] = useState(0);
+  const [gpsDriveHours, setGpsDriveHours] = useState(0);
+  const [numTolls, setNumTolls] = useState(0);
+
+  const [gasPrice, setGasPrice] = useState(5);
+  const [laborRate, setLaborRate] = useState(300);
+
+  // Toggle for hotel/per diem
+  const [needsHotel, setNeedsHotel] = useState(false);
+  const [hotelRate, setHotelRate] = useState(150);
+  const [perDiemRate, setPerDiemRate] = useState(50);
+
+  const [oneWayDriverHourly, setOneWayDriverHourly] = useState(40);
+  const [roundTripDriverHourly, setRoundTripDriverHourly] = useState(50);
+
+  const [numWorkers, setNumWorkers] = useState(2);
+  const [numLaborDays, setNumLaborDays] = useState(1);
+
+  const [needsPacking, setNeedsPacking] = useState(false);
+
+  const [penskeCity, setPenskeCity] = useState('');
+  const [oneWayTruckCost, setOneWayTruckCost] = useState(0);
+
+  const [truckDailyRate, setTruckDailyRate] = useState(300);
+  const [truckMileageRate, setTruckMileageRate] = useState(0.3);
+
+  const [numReturnFlights, setNumReturnFlights] = useState(2);
+  const [flightTicketRate, setFlightTicketRate] = useState(0);
+
+  // 4) Import leads -> set pickup/delivery, switch to calculator
+  function handleImportLead(lead: SmartMovingLead) {
+    const pickupAddr = lead.originAddressFull?.trim()
+      || `${lead.originStreet || ''} ${lead.originCity || ''}`.trim();
+    const deliveryAddr = lead.destinationAddressFull?.trim()
+      || `${lead.destinationStreet || ''} ${lead.destinationCity || ''}`.trim();
+
+    setPickup(pickupAddr);
+    setDelivery(deliveryAddr);
+    setSelectedLead(lead);
+    setView('calculator');
+  }
 
   return (
-    <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Adjust Rate Settings</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className={commonStyles.label}>Driver Hourly Rate ($)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={localAdjustments.driverHourlyRate}
-              onChange={(e) => setLocalAdjustments(prev => ({
-                ...prev,
-                driverHourlyRate: parseFloat(e.target.value) || 0
-              }))}
-              className={commonStyles.input}
-            />
-          </div>
-          <div>
-            <label className={commonStyles.label}>Gas Price per Gallon ($)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={localAdjustments.gasPrice}
-              onChange={(e) => setLocalAdjustments(prev => ({
-                ...prev,
-                gasPrice: parseFloat(e.target.value) || 0
-              }))}
-              className={commonStyles.input}
-            />
-          </div>
-          <div>
-            <label className={commonStyles.label}>Worker Daily Rate ($)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={localAdjustments.workerDailyRate}
-              onChange={(e) => setLocalAdjustments(prev => ({
-                ...prev,
-                workerDailyRate: parseFloat(e.target.value) || 0
-              }))}
-              className={commonStyles.input}
-            />
-          </div>
-          <div>
-            <label className={commonStyles.label}>Hotel Rate per Night ($)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={localAdjustments.hotelRate}
-              onChange={(e) => setLocalAdjustments(prev => ({
-                ...prev,
-                hotelRate: parseFloat(e.target.value) || 0
-              }))}
-              className={commonStyles.input}
-            />
-          </div>
-          <div>
-            <label className={commonStyles.label}>Per Diem Rate ($)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={localAdjustments.perDiemRate}
-              onChange={(e) => setLocalAdjustments(prev => ({
-                ...prev,
-                perDiemRate: parseFloat(e.target.value) || 0
-              }))}
-              className={commonStyles.input}
-            />
-          </div>
-          <div>
-            <label className={commonStyles.label}>Truck Daily Rate ($)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={localAdjustments.truckDailyRate}
-              onChange={(e) => setLocalAdjustments(prev => ({
-                ...prev,
-                truckDailyRate: parseFloat(e.target.value) || 0
-              }))}
-              className={commonStyles.input}
-            />
-          </div>
-          <div>
-            <label className={commonStyles.label}>Truck Mileage Rate ($)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={localAdjustments.truckMileageRate}
-              onChange={(e) => setLocalAdjustments(prev => ({
-                ...prev,
-                truckMileageRate: parseFloat(e.target.value) || 0
-              }))}
-              className={commonStyles.input}
-            />
-          </div>
-          <div>
-            <label className={commonStyles.label}>Flight Ticket Rate ($)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={localAdjustments.flightTicketRate}
-              onChange={(e) => setLocalAdjustments(prev => ({
-                ...prev,
-                flightTicketRate: parseFloat(e.target.value) || 0
-              }))}
-              className={commonStyles.input}
-            />
-          </div>
+    <div className="min-h-screen bg-gray-100 flex flex-col">
+      {/* Header */}
+      <header className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-red-600 to-pink-600 bg-clip-text text-transparent">
+            Poindexter Quote Calculator
+          </h1>
         </div>
-        <div className="mt-6 flex justify-end space-x-4">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => {
-              onSave(localAdjustments);
-              onClose();
-            }}
-            className="px-4 py-2 bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-lg"
-          >
-            Save Changes
-          </button>
+      </header>
+
+      {/* View Toggle Bar */}
+      <nav className="bg-gray-100 border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 py-2 flex space-x-3 justify-center">
+          <ViewToggle label="Split View" current={view} setView={setView} mode="split" />
+          <ViewToggle label="Full Leads" current={view} setView={setView} mode="leads" />
+          <ViewToggle label="Full Calculator" current={view} setView={setView} mode="calculator" />
         </div>
-      </div>
+      </nav>
+
+      {/* Main Content */}
+      <main className="flex-1 overflow-auto p-4">
+        <div className={view === 'split' ? 'grid grid-cols-1 lg:grid-cols-2 gap-6 h-full' : 'h-full'}>
+          {/* LEFT: Leads */}
+          {(view === 'split' || view === 'leads') && (
+            <div className="bg-white p-4 rounded-md shadow flex flex-col h-full">
+              <h2 className="text-xl font-bold text-black mb-4">Leads</h2>
+
+              {loadingLeads ? (
+                <p className="text-black">Loading leads...</p>
+              ) : error ? (
+                <p className="text-red-600">{error}</p>
+              ) : (
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  <div className="shadow ring-1 ring-gray-200 md:rounded-lg">
+                    <table className="min-w-full table-fixed divide-y divide-gray-200 text-sm">
+                      {/* all <col> tags on ONE line → no whitespace text nodes */}
+                      <colgroup><col className="w-40"/><col className="w-60"/><col className="w-60"/><col className="w-28"/></colgroup>
+
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                            Name
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                            Origin
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                            Destination
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+
+                      <tbody className="divide-y divide-gray-200 bg-white">
+                        {leads.map((lead) => (
+                          <tr key={lead.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-900">
+                              {lead.customerName ?? 'N/A'}
+                            </td>
+
+                            <td className="px-4 py-3 truncate text-gray-700">
+                              {lead.originAddressFull ?? 'N/A'}
+                            </td>
+                            <td className="px-4 py-3 truncate text-gray-700">
+                              {lead.destinationAddressFull ?? 'N/A'}
+                            </td>
+
+                            <td className="px-4 py-3">
+                              <button
+                                onClick={() => handleImportLead(lead)}
+                                className="inline-flex items-center rounded-md bg-gradient-to-r from-gray-400 to-gray-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:from-red-600 hover:to-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                              >
+                                Import
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+
+                        {leads.length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
+                              No leads found
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* RIGHT: Calculator */}
+          {(view === 'split' || view === 'calculator') && (
+            <div className="bg-white p-4 rounded-md shadow flex flex-col">
+              <SinglePageCalculator
+                moveType={moveType}
+                setMoveType={setMoveType}
+                warehouseStart={warehouseStart}
+                setWarehouseStart={setWarehouseStart}
+                warehouseReturn={warehouseReturn}
+                setWarehouseReturn={setWarehouseReturn}
+                pickup={pickup}
+                setPickup={setPickup}
+                delivery={delivery}
+                setDelivery={setDelivery}
+                totalMiles={totalMiles}
+                setTotalMiles={setTotalMiles}
+                gpsDriveHours={gpsDriveHours}
+                setGpsDriveHours={setGpsDriveHours}
+                numTolls={numTolls}
+                setNumTolls={setNumTolls}
+                gasPrice={gasPrice}
+                setGasPrice={setGasPrice}
+                laborRate={laborRate}
+                setLaborRate={setLaborRate}
+                needsHotel={needsHotel}
+                setNeedsHotel={setNeedsHotel}
+                hotelRate={hotelRate}
+                setHotelRate={setHotelRate}
+                perDiemRate={perDiemRate}
+                setPerDiemRate={setPerDiemRate}
+                oneWayDriverHourly={oneWayDriverHourly}
+                setOneWayDriverHourly={setOneWayDriverHourly}
+                roundTripDriverHourly={roundTripDriverHourly}
+                setRoundTripDriverHourly={setRoundTripDriverHourly}
+                numWorkers={numWorkers}
+                setNumWorkers={setNumWorkers}
+                numLaborDays={numLaborDays}
+                setNumLaborDays={setNumLaborDays}
+                needsPacking={needsPacking}
+                setNeedsPacking={setNeedsPacking}
+                penskeCity={penskeCity}
+                setPenskeCity={setPenskeCity}
+                oneWayTruckCost={oneWayTruckCost}
+                setOneWayTruckCost={setOneWayTruckCost}
+                truckDailyRate={truckDailyRate}
+                setTruckDailyRate={setTruckDailyRate}
+                truckMileageRate={truckMileageRate}
+                setTruckMileageRate={setTruckMileageRate}
+                numReturnFlights={numReturnFlights}
+                setNumReturnFlights={setNumReturnFlights}
+                flightTicketRate={flightTicketRate}
+                setFlightTicketRate={setFlightTicketRate}
+                selectedLead={selectedLead}
+              />
+            </div>
+          )}
+        </div>
+      </main>
     </div>
   );
 }
 
-export default function DashboardPage() {
-  const { user } = useClerk();
-  const { signOut } = useClerk();
-  const [view, setView] = useState<'split' | 'leads' | 'calculator'>('split');
-  const [currentStep, setCurrentStep] = useState<CalculatorStep>('move-type');
-  const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
-  const [calculatorState, setCalculatorState] = useState<CalculatorState>({
-    moveType: null,
-    addresses: {
-      warehouse: { street: '', city: '', state: '', zip: '' },
-      pickup: { street: '', city: '', state: '', zip: '' },
-      delivery: { street: '', city: '', state: '', zip: '' },
-    },
-    distances: {
-      totalMiles: 0,
-      drivingHours: 0,
-      drivingDays: 0,
-    },
-    loading: {
-      workers: 0,
-      days: 0,
-    },
-    needsPacking: false,
-    packingCost: 0,
-    truckRental: {
-      cost: 0,
-      days: 0,
-    },
-    returnFlights: 0,
-    tolls: 0,
-    adjustments: {
-      driverHourlyRate: 40,
-      gasPrice: 3.50,
-      workerDailyRate: 300,
-      hotelRate: 150,
-      perDiemRate: 50,
-      truckDailyRate: 300,
-      truckMileageRate: 0.30,
-      flightTicketRate: 500,
-    }
-  });
-  const [leads, setLeads] = useState<SmartMovingLead[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Fetch leads on component mount
-  useEffect(() => {
-    fetchLeads();
-  }, []);
-
-  const fetchLeads = async () => {
-    try {
-      setIsLoading(true);
-      const fetchedLeads = await smartMovingService.getLeads();
-      setLeads(fetchedLeads);
-      setError(null);
-    } catch (err) {
-      setError('Failed to fetch leads. Please try again later.');
-      console.error('Error fetching leads:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDeleteLead = async (id: string) => {
-    try {
-      await smartMovingService.deleteLead(id);
-      setLeads(prevLeads => prevLeads.filter(lead => lead.id !== id));
-    } catch (err) {
-      console.error('Error deleting lead:', err);
-      // You might want to show an error message to the user here
-    }
-  };
-
-  const handleQuoteApproval = async () => {
-    const costs = calculateTotalCost();
-    
-    const newLead: Partial<SmartMovingLead> = {
-      status: 'New',
-      moveType: calculatorState.moveType === 'one-way' ? 'One-Way Move' : 'Round-Trip Move',
-      serviceDate: new Date().toISOString().split('T')[0], // Today's date as default
-      customerName: 'New Customer', // This should be collected during the quote process
-      branch: calculatorState.addresses.warehouse.city,
-      opportunityType: 'Moving',
-      pickupAddress: `${calculatorState.addresses.pickup.street}, ${calculatorState.addresses.pickup.city}, ${calculatorState.addresses.pickup.state} ${calculatorState.addresses.pickup.zip}`,
-      moveSize: `${calculatorState.loading.workers} Workers, ${calculatorState.loading.days} Days`,
-      leadSource: 'Quote Calculator',
-      createdAt: new Date().toISOString(),
-      quoteAmount: costs.total
-    };
-
-    try {
-      const createdLead = await smartMovingService.createLead(newLead);
-      setLeads(prevLeads => [...prevLeads, createdLead]);
-
-      // Reset calculator state
-      setCalculatorState({
-        moveType: null,
-        addresses: {
-          warehouse: { street: '', city: '', state: '', zip: '' },
-          pickup: { street: '', city: '', state: '', zip: '' },
-          delivery: { street: '', city: '', state: '', zip: '' },
-        },
-        distances: {
-          totalMiles: 0,
-          drivingHours: 0,
-          drivingDays: 0,
-        },
-        loading: {
-          workers: 0,
-          days: 0,
-        },
-        needsPacking: false,
-        packingCost: 0,
-        truckRental: {
-          cost: 0,
-          days: 0,
-        },
-        returnFlights: 0,
-        tolls: 0,
-        adjustments: {
-          driverHourlyRate: 40,
-          gasPrice: 3.50,
-          workerDailyRate: 300,
-          hotelRate: 150,
-          perDiemRate: 50,
-          truckDailyRate: 300,
-          truckMileageRate: 0.30,
-          flightTicketRate: 500,
-        }
-      });
-
-      setCurrentStep('move-type');
-      setView('leads'); // Switch to leads view after approval
-    } catch (err) {
-      console.error('Error creating lead:', err);
-      // You might want to show an error message to the user here
-    }
-  };
-
-  // Sample leads data with new structure
-  const sampleLeads = [
-    {
-      id: 1,
-      oppStatus: 'New' as OppStatus,
-      type: 'Residential',
-      serviceDate: '2024-04-01',
-      name: 'John Doe',
-      branch: 'North Dallas',
-      opportunityType: 'Moving',
-      address: '1234 Main St, Dallas, TX 75001',
-      moveSize: '2 Bedroom',
-      source: 'Website',
-      age: '2 days'
-    },
-    {
-      id: 2,
-      oppStatus: 'Contacted' as OppStatus,
-      type: 'Commercial',
-      serviceDate: '2024-04-15',
-      name: 'Jane Smith',
-      branch: 'South Austin',
-      opportunityType: 'Storage',
-      address: '5678 Business Ave, Austin, TX 78701',
-      moveSize: 'Office (2000 sqft)',
-      source: 'Referral',
-      age: '1 day'
-    },
-    {
-      id: 3,
-      oppStatus: 'Qualified' as OppStatus,
-      type: 'Residential',
-      serviceDate: '2024-04-10',
-      name: 'Mike Johnson',
-      branch: 'West Houston',
-      opportunityType: 'Moving',
-      address: '910 Oak Lane, Houston, TX 77001',
-      moveSize: '3 Bedroom',
-      source: 'Google Ads',
-      age: '5 days'
-    },
-  ];
-
-  const ViewToggle = ({ currentView, viewType, label }: { currentView: string, viewType: 'split' | 'leads' | 'calculator', label: string }) => (
+/** Simple view toggle helper */
+function ViewToggle({
+  label,
+  current,
+  setView,
+  mode
+}: {
+  label: string;
+  current: 'split' | 'leads' | 'calculator';
+  setView: React.Dispatch<React.SetStateAction<'split' | 'leads' | 'calculator'>>;
+  mode: 'split' | 'leads' | 'calculator';
+}) {
+  const isActive = current === mode;
+  return (
     <button
-      onClick={() => setView(viewType)}
-      className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-        currentView === viewType
-          ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white shadow-md'
-          : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-      }`}
+      onClick={() => setView(mode)}
+      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors 
+        ${
+          isActive
+            ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white shadow'
+            : 'bg-white border border-gray-300 text-black hover:bg-gray-50'
+        }`}
     >
       {label}
     </button>
   );
+}
 
-  // Function to render status badge with appropriate color
-  const StatusBadge = ({ status }: { status: OppStatus }) => {
-    const colors: Record<OppStatus, string> = {
-      'New': 'bg-green-100 text-green-800',
-      'Contacted': 'bg-blue-100 text-blue-800',
-      'Qualified': 'bg-yellow-100 text-yellow-800',
-      'Lost': 'bg-red-100 text-red-800',
-      'Won': 'bg-purple-100 text-purple-800'
-    };
-    return (
-      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${colors[status]}`}>
-        {status}
-      </span>
+/** The single-page calculator component */
+function SinglePageCalculator(props: {
+  moveType: MoveType;
+  setMoveType: (v: MoveType) => void;
+
+  // addresses
+  warehouseStart: string;
+  setWarehouseStart: (v: string) => void;
+  warehouseReturn: string;
+  setWarehouseReturn: (v: string) => void;
+  pickup: string;
+  setPickup: (v: string) => void;
+  delivery: string;
+  setDelivery: (v: string) => void;
+
+  // distance/time
+  totalMiles: number;
+  setTotalMiles: (v: number) => void;
+  gpsDriveHours: number;
+  setGpsDriveHours: (v: number) => void;
+  numTolls: number;
+  setNumTolls: (v: number) => void;
+
+  // manager-adjustable rates
+  gasPrice: number;
+  setGasPrice: (v: number) => void;
+  laborRate: number;
+  setLaborRate: (v: number) => void;
+
+  // Hotel toggle
+  needsHotel: boolean;
+  setNeedsHotel: (v: boolean) => void;
+  hotelRate: number;
+  setHotelRate: (v: number) => void;
+  perDiemRate: number;
+  setPerDiemRate: (v: number) => void;
+
+  // driver rates
+  oneWayDriverHourly: number;
+  setOneWayDriverHourly: (v: number) => void;
+  roundTripDriverHourly: number;
+  setRoundTripDriverHourly: (v: number) => void;
+
+  // loading labor
+  numWorkers: number;
+  setNumWorkers: (v: number) => void;
+  numLaborDays: number;
+  setNumLaborDays: (v: number) => void;
+
+  // packing
+  needsPacking: boolean;
+  setNeedsPacking: (v: boolean) => void;
+
+  // truck rental
+  penskeCity: string;
+  setPenskeCity: (v: string) => void;
+  oneWayTruckCost: number;
+  setOneWayTruckCost: (v: number) => void;
+  truckDailyRate: number;
+  setTruckDailyRate: (v: number) => void;
+  truckMileageRate: number;
+  setTruckMileageRate: (v: number) => void;
+
+  // flights
+  numReturnFlights: number;
+  setNumReturnFlights: (v: number) => void;
+  flightTicketRate: number;
+  setFlightTicketRate: (v: number) => void;
+
+  // Lead Id Traicking
+  selectedLead: SmartMovingLead | null;
+}) {
+  const {
+    moveType, setMoveType,
+    warehouseStart, warehouseReturn, pickup, delivery,
+    totalMiles, setTotalMiles,
+    gpsDriveHours, setGpsDriveHours,
+    numTolls, setNumTolls,
+    gasPrice, setGasPrice,
+    laborRate, setLaborRate,
+    needsHotel, setNeedsHotel,
+    hotelRate, setHotelRate,
+    perDiemRate, setPerDiemRate,
+    oneWayDriverHourly, setOneWayDriverHourly,
+    roundTripDriverHourly, setRoundTripDriverHourly,
+    numWorkers, setNumWorkers,
+    numLaborDays, setNumLaborDays,
+    needsPacking, setNeedsPacking,
+    penskeCity, setPenskeCity,
+    oneWayTruckCost, setOneWayTruckCost,
+    truckDailyRate, setTruckDailyRate,
+    truckMileageRate, setTruckMileageRate,
+    numReturnFlights, setNumReturnFlights,
+    flightTicketRate, setFlightTicketRate,
+    selectedLead,
+  } = props;
+
+  const [packingItems, setPackingItems] = useState(() => defaultPackingItems);
+
+  function updatePackingItem(idx: number, field: 'price' | 'quantity', val: number) {
+    setPackingItems(items =>
+      items.map((it, i) => (i === idx ? { ...it, [field]: val } : it))
     );
-  };
+  }
 
-  const calculateTotalCost = () => {
-    const {
-      moveType,
-      distances,
-      loading,
-      packingCost,
-      truckRental,
-      returnFlights,
-      tolls,
-      adjustments
-    } = calculatorState;
+  const [nearestAirportName, setNearestAirportName] = useState('');
+  const [nearestAirportCode, setNearestAirportCode] = useState('');
 
-    // Driver pay
-    const driverRate = moveType === 'one-way' ? adjustments.driverHourlyRate : 50;
-    const totalDrivingHours = distances.drivingHours + Math.floor(distances.drivingHours / 6) * 2;
-    const driverPay = totalDrivingHours * driverRate;
-
-    // Fuel cost
-    const gallonsNeeded = distances.totalMiles / 5;
-    const fuelCost = gallonsNeeded * adjustments.gasPrice;
-
-    // Loading labor
-    const laborCost = loading.workers * loading.days * adjustments.workerDailyRate;
-
-    // Hotel and per diem
-    const hotelCost = distances.drivingDays * adjustments.hotelRate;
-    const perDiemCost = distances.drivingDays * adjustments.perDiemRate * (moveType === 'one-way' ? 1 : 2);
-
-    // Truck costs
-    let truckCost = 0;
-    if (moveType === 'round-trip') {
-      truckCost = (truckRental.days * adjustments.truckDailyRate) + (distances.totalMiles * adjustments.truckMileageRate);
-    } else {
-      truckCost = truckRental.cost;
+  // 1) Handle distance calc
+  async function handleDistanceCalc() {
+    if (!moveType || !warehouseStart || !pickup || !delivery) {
+      alert('Please fill in moveType, warehouseStart, pickup, and delivery');
+      return;
     }
 
-    // Flight costs
-    const flightCost = moveType === 'one-way' ? returnFlights * adjustments.flightTicketRate : 0;
+    try {
+      const body = {
+        moveType,
+        warehouse: warehouseStart,
+        pickup,
+        delivery,
+        returnWarehouse: warehouseReturn
+      };
 
-    // Toll costs
-    const tollCost = tolls * 100 * (moveType === 'round-trip' ? 2 : 1);
+      const res = await fetch('/api/calculate-distance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to calculate route');
+      }
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to calculate route');
+      }
+
+      // { distance, duration, tolls, nearestAirport }
+      const { distance, duration, tolls,
+        nearestAirportName: apName,
+        nearestAirportCode: apCode } = data.data;
+
+      setTotalMiles(distance);
+      setGpsDriveHours(duration / 60);
+      setNumTolls(tolls);
+
+      if (moveType === 'one-way' && apName && apCode) {
+        setNearestAirportName(apName);
+        setNearestAirportCode(apCode);
+      } else {
+        setNearestAirportName('');
+        setNearestAirportCode('');
+      }
+
+      alert(`Route = ${distance.toFixed(1)} miles, ~${(duration / 60).toFixed(1)} hours\nTolls: ${tolls}`);
+    } catch (err: any) {
+      alert(`Error calculating route: ${err.message}`);
+      console.error(err);
+    }
+  }
+
+  // 2) Handle check flight price: calls /api/calculate-flight
+  async function handleCheckFlightPrice() {
+    if (!nearestAirportCode) {
+      alert('No nearest airport found…');
+      return;
+    }
+
+    const originCode = nearestAirportCode;       
+    const tomorrow   = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 5);
+    const depStr = tomorrow.toISOString().split('T')[0];
+
+    const adults = numReturnFlights || 1;
+
+    try {
+      const res = await fetch('/api/calculate-flight', {
+        method : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body   : JSON.stringify({
+          originAirport       : originCode,
+          departureDate       : depStr,
+          adults
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to fetch flight price');
+      }
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to get flight price from Amadeus');
+      }
+
+      const flightPrice = data.flightPrice;
+      setFlightTicketRate(flightPrice);
+
+      alert(`Found flight from ${originCode} → PHX for ~$${flightPrice}. Updated ticket rate.`);
+    } catch (err: any) {
+      alert(`Amadeus flight error: ${err.message}`);
+      console.error(err);
+    }
+  }
+
+
+  // 3) Summarize cost
+  function calculateCost() {
+    // +2 hours for every 6 hours of GPS time
+    const extraHours = Math.floor(gpsDriveHours / 6) * 2;
+    const adjustedDriveHours = gpsDriveHours + extraHours;
+    const drivingDays = Math.ceil(gpsDriveHours / 9);
+
+    const driverRate = (moveType === 'one-way')
+      ? oneWayDriverHourly
+      : roundTripDriverHourly;
+
+    const driverPay = adjustedDriveHours * driverRate;
+    const gallons = totalMiles / 5; 
+    const fuelCost = gallons * gasPrice;
+
+    const laborCost = numWorkers * numLaborDays * laborRate;
+
+    let hotelCost = 0;
+    let perDiemCost = 0;
+    if (needsHotel) {
+      hotelCost = drivingDays * hotelRate;
+      perDiemCost = drivingDays * perDiemRate;
+    }
+
+    const packingTotal = needsPacking
+      ? packingItems.reduce((sum, it) => sum + it.price * it.quantity, 0)
+      : 0;
+
+    let truckCost = 0;
+    if (moveType === 'one-way') {
+      truckCost = oneWayTruckCost;
+    } else {
+      const roundTripTruckDays = numLaborDays + drivingDays;
+      truckCost = (roundTripTruckDays * truckDailyRate) + (totalMiles * truckMileageRate);
+    }
+
+    let flightCost = 0;
+    if (moveType === 'one-way') {
+      flightCost = numReturnFlights * flightTicketRate;
+    }
+
+    const baseToll = numTolls * 100;
+    const tollCost = (moveType === 'round-trip') ? baseToll * 2 : baseToll;
+
+    const total =
+      driverPay + fuelCost + laborCost + hotelCost + perDiemCost +
+      packingTotal + truckCost + flightCost + tollCost;
 
     return {
+      adjustedDriveHours,
+      drivingDays,
       driverPay,
       fuelCost,
       laborCost,
       hotelCost,
       perDiemCost,
+      packingCost: packingTotal,
       truckCost,
       flightCost,
       tollCost,
-      packingCost,
-      total: driverPay + fuelCost + laborCost + hotelCost + perDiemCost + truckCost + flightCost + tollCost + packingCost
+      total
     };
-  };
+  }
 
-  const renderCalculatorStep = () => {
-    switch (currentStep) {
-      case 'move-type':
-        return (
-          <div className="space-y-6">
-            <h3 className="text-xl font-semibold text-gray-900">Move Type</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={() => {
-                  setCalculatorState(prev => ({ ...prev, moveType: 'one-way' }));
-                  setCurrentStep('addresses');
-                }}
-                className={`p-4 border-2 rounded-lg text-center transition-colors ${
-                  calculatorState.moveType === 'one-way'
-                    ? 'border-red-500 bg-red-50 text-gray-900 font-medium'
-                    : 'border-red-200 hover:border-red-500 text-gray-900 hover:bg-red-50'
-                }`}
-              >
-                One-Way Move
-              </button>
-              <button
-                onClick={() => {
-                  setCalculatorState(prev => ({ ...prev, moveType: 'round-trip' }));
-                  setCurrentStep('addresses');
-                }}
-                className={`p-4 border-2 rounded-lg text-center transition-colors ${
-                  calculatorState.moveType === 'round-trip'
-                    ? 'border-red-500 bg-red-50 text-gray-900 font-medium'
-                    : 'border-red-200 hover:border-red-500 text-gray-900 hover:bg-red-50'
-                }`}
-              >
-                Round-Trip Move
-              </button>
-            </div>
+  const costs = calculateCost();
+  const totalJobDays = costs.drivingDays + numLaborDays;
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-xl font-bold text-black mb-3">Move Calculator</h2>
+
+      {/* Top row: Move Type & Distance */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+        {/* Move Type toggle */}
+        <div className="mb-2 md:mb-0">
+          <label className="font-medium mr-3 text-black">Move Type:</label>
+          <button
+            onClick={() => setMoveType('one-way')}
+            className={`px-3 py-1 mr-2 rounded border text-black ${
+              moveType === 'one-way' ? 'border-red-500 bg-red-100' : 'border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            One-Way
+          </button>
+          <button
+            onClick={() => setMoveType('round-trip')}
+            className={`px-3 py-1 rounded border text-black ${
+              moveType === 'round-trip' ? 'border-red-500 bg-red-100' : 'border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            Round-Trip
+          </button>
+        </div>
+
+        {/* "Calculate Distance" */}
+        <div>
+          <button
+            onClick={handleDistanceCalc}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Calculate Distance
+          </button>
+        </div>
+      </div>
+
+      {/* Addresses */}
+      <div className="border p-3 rounded space-y-3">
+        <h3 className="font-semibold text-black">Addresses</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <TextField
+            label="Warehouse (Start)"
+            value={warehouseStart}
+            setValue={props.setWarehouseStart}
+          />
+          {moveType === 'round-trip' && (
+            <TextField
+              label="Warehouse (Return)"
+              value={warehouseReturn}
+              setValue={props.setWarehouseReturn}
+            />
+          )}
+          <TextField
+            label="Pick-up"
+            value={pickup}
+            setValue={props.setPickup}
+          />
+          <TextField
+            label="Delivery"
+            value={delivery}
+            setValue={props.setDelivery}
+          />
+        </div>
+      </div>
+
+      {/* Miles, Hours, Tolls, Gas Price */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <NumberField label="Total Miles" value={totalMiles} setValue={setTotalMiles} />
+        <NumberField label="GPS Drive Hours" value={gpsDriveHours} setValue={setGpsDriveHours} />
+        <NumberField label="# Tolls" value={numTolls} setValue={setNumTolls} />
+        <NumberField label="Gas Price ($/gallon)" value={gasPrice} setValue={setGasPrice} />
+      </div>
+
+      {/* 2-col: Loading Labor | Hotel & Per Diem */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Loading Labor */}
+        <div className="border p-3 rounded space-y-2">
+          <h3 className="font-semibold text-black">Loading Labor</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <NumberField label="# of Workers" value={numWorkers} setValue={setNumWorkers} />
+            <NumberField label="# of Days" value={numLaborDays} setValue={setNumLaborDays} />
           </div>
-        );
+          <NumberField
+            label="Daily Rate ($/day/guy)"
+            value={laborRate}
+            setValue={setLaborRate}
+          />
+        </div>
 
-      case 'addresses':
-        return (
-          <div className="space-y-6">
-            <h3 className="text-xl font-semibold text-gray-900">Addresses</h3>
-            <div className="grid grid-cols-1 gap-6">
-              {(['warehouse', 'pickup', 'delivery'] as AddressKey[]).map((type) => (
-                <div key={type} className="space-y-4">
-                  <h4 className="font-medium text-gray-900 capitalize">{type} Address</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className={commonStyles.label}>Street</label>
-                      <input
-                        type="text"
-                        value={calculatorState.addresses[type].street}
-                        onChange={(e) => setCalculatorState(prev => ({
-                          ...prev,
-                          addresses: {
-                            ...prev.addresses,
-                            [type]: { ...prev.addresses[type], street: e.target.value }
-                          }
-                        }))}
-                        className={commonStyles.input}
-                        placeholder="Enter street address"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      <div>
-                        <label className={commonStyles.label}>City</label>
-                        <input
-                          type="text"
-                          value={calculatorState.addresses[type].city}
-                          onChange={(e) => setCalculatorState(prev => ({
-                            ...prev,
-                            addresses: {
-                              ...prev.addresses,
-                              [type]: { ...prev.addresses[type], city: e.target.value }
-                            }
-                          }))}
-                          className={commonStyles.input}
-                          placeholder="City"
-                        />
-                      </div>
-                      <div>
-                        <label className={commonStyles.label}>State</label>
-                        <input
-                          type="text"
-                          value={calculatorState.addresses[type].state}
-                          onChange={(e) => setCalculatorState(prev => ({
-                            ...prev,
-                            addresses: {
-                              ...prev.addresses,
-                              [type]: { ...prev.addresses[type], state: e.target.value }
-                            }
-                          }))}
-                          className={commonStyles.input}
-                          placeholder="State"
-                        />
-                      </div>
-                      <div>
-                        <label className={commonStyles.label}>ZIP</label>
-                        <input
-                          type="text"
-                          value={calculatorState.addresses[type].zip}
-                          onChange={(e) => setCalculatorState(prev => ({
-                            ...prev,
-                            addresses: {
-                              ...prev.addresses,
-                              [type]: { ...prev.addresses[type], zip: e.target.value }
-                            }
-                          }))}
-                          className={commonStyles.input}
-                          placeholder="ZIP"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {calculatorState.moveType === 'one-way' && (
-                <div className="space-y-4">
-                  <h4 className="font-medium text-gray-900">Nearest Airport (for return flight)</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className={commonStyles.label}>Airport Name/Code</label>
-                      <input
-                        type="text"
-                        value={calculatorState.addresses.airport?.street || ''}
-                        onChange={(e) => setCalculatorState(prev => ({
-                          ...prev,
-                          addresses: {
-                            ...prev.addresses,
-                            airport: { ...prev.addresses.airport || { city: '', state: '', zip: '' }, street: e.target.value }
-                          }
-                        }))}
-                        className={commonStyles.input}
-                        placeholder="Enter airport name or code"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="flex justify-between">
-              <button
-                onClick={() => setCurrentStep('move-type')}
-                className="px-4 py-2 text-sm font-medium text-gray-900 hover:text-red-600"
-              >
-                Back
-              </button>
-              <button
-                onClick={() => {
-                  setCalculatorState(prev => ({
-                    ...prev,
-                    distances: {
-                      totalMiles: 1200,
-                      drivingHours: 20,
-                      drivingDays: Math.ceil(20 / 9)
-                    }
-                  }));
-                  setCurrentStep('loading-labor');
-                }}
-                className="px-4 py-2 bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-lg font-medium"
-              >
-                Calculate Distance & Continue
-              </button>
-            </div>
+        {/* Hotel & Per Diem */}
+        <div className="border p-3 rounded space-y-2">
+          <h3 className="font-semibold text-black">Hotel & Per Diem</h3>
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              checked={needsHotel}
+              onChange={e => setNeedsHotel(e.target.checked)}
+            />
+            <span className="text-black">Need Hotel?</span>
           </div>
-        );
+          {needsHotel && (
+            <>
+              <NumberField
+                label="Hotel Rate ($/night)"
+                value={hotelRate}
+                setValue={setHotelRate}
+              />
+              <NumberField
+                label="Per Diem Rate ($/night/driver)"
+                value={perDiemRate}
+                setValue={setPerDiemRate}
+              />
+            </>
+          )}
+        </div>
+      </div>
 
-      case 'loading-labor':
-        return (
-          <div className="space-y-6">
-            <h3 className="text-xl font-semibold text-gray-900">Loading Labor</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className={commonStyles.label}>Number of Workers</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={calculatorState.loading.workers}
-                  onChange={(e) => setCalculatorState(prev => ({
-                    ...prev,
-                    loading: { ...prev.loading, workers: parseInt(e.target.value) || 0 }
-                  }))}
-                  className={commonStyles.input}
-                />
-              </div>
-              <div>
-                <label className={commonStyles.label}>Number of Days</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={calculatorState.loading.days}
-                  onChange={(e) => setCalculatorState(prev => ({
-                    ...prev,
-                    loading: { ...prev.loading, days: parseInt(e.target.value) || 0 }
-                  }))}
-                  className={commonStyles.input}
-                />
-              </div>
-            </div>
-            <div className={commonStyles.costDisplay}>
-              <p className="text-sm text-gray-700">
-                Labor cost per worker per day: <span className="font-medium text-gray-900">${calculatorState.adjustments.workerDailyRate}</span>
-              </p>
-              <p className="text-lg font-semibold text-gray-900 mt-2">
-                Total Labor Cost: ${(calculatorState.loading.workers * calculatorState.loading.days * calculatorState.adjustments.workerDailyRate).toFixed(2)}
-              </p>
-            </div>
-            <div className="flex justify-between">
-              <button
-                onClick={() => setCurrentStep('addresses')}
-                className="px-4 py-2 text-sm font-medium text-gray-900 hover:text-red-600"
-              >
-                Back
-              </button>
-              <button
-                onClick={() => setCurrentStep('packing')}
-                className="px-4 py-2 bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-lg font-medium"
-              >
-                Next
-              </button>
-            </div>
+      {/* 2-col: Packing Supplies | Truck Rental */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Packing Supplies */}
+        <div className="border p-3 rounded space-y-2">
+          <h3 className="font-semibold text-black">Packing Supplies</h3>
+
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              checked={needsPacking}
+              onChange={(e) => setNeedsPacking(e.target.checked)}
+            />
+            <span className="text-black">Needs packing supplies?</span>
           </div>
-        );
 
-      case 'packing':
-        return (
-          <div className="space-y-6">
-            <h3 className="text-xl font-semibold text-gray-900">Packing Supplies</h3>
-            <div>
-              <div className="flex items-center space-x-3">
-                <input
-                  type="checkbox"
-                  id="needsPacking"
-                  checked={calculatorState.needsPacking}
-                  onChange={(e) => setCalculatorState(prev => ({
-                    ...prev,
-                    needsPacking: e.target.checked,
-                    packingCost: e.target.checked ? prev.packingCost : 0
-                  }))}
-                  className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
-                />
-                <label htmlFor="needsPacking" className="text-sm font-medium text-gray-700">
-                  Customer needs packing supplies
-                </label>
-              </div>
-              {calculatorState.needsPacking && (
-                <div className="mt-4">
-                  <label className={commonStyles.label}>Packing Cost</label>
-                  <div className="mt-1 relative rounded-md shadow-sm">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <span className="text-gray-500 sm:text-sm">$</span>
-                    </div>
+          {needsPacking && (
+            <div className="space-y-3 mt-2">
+              {packingItems.map((item, idx) => (
+                <div
+                  key={item.name}
+                  className="grid grid-cols-3 gap-2 items-center"
+                >
+                  <div className="text-black">{item.name}</div>
+
+                  <div>
+                    <label className="block text-xs text-gray-600">Price</label>
                     <input
                       type="number"
-                      value={calculatorState.packingCost}
-                      onChange={(e) => setCalculatorState(prev => ({
-                        ...prev,
-                        packingCost: parseFloat(e.target.value) || 0
-                      }))}
-                      className={commonStyles.inputWithPrefix}
-                      placeholder="0.00"
+                      step="0.01"
+                      className="mt-1 w-full rounded border border-gray-300 p-1 text-black"
+                      value={item.price}
+                      onChange={(e) =>
+                        updatePackingItem(
+                          idx,
+                          'price',
+                          parseFloat(e.target.value) || 0,
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-gray-600">Qty</label>
+                    <input
+                      type="number"
+                      className="mt-1 w-full rounded border border-gray-300 p-1 text-black"
+                      value={item.quantity}
+                      onChange={(e) =>
+                        updatePackingItem(
+                          idx,
+                          'quantity',
+                          parseInt(e.target.value) || 0,
+                        )
+                      }
                     />
                   </div>
                 </div>
-              )}
+              ))}
             </div>
-            <div className="flex justify-between">
-              <button
-                onClick={() => setCurrentStep('loading-labor')}
-                className="px-4 py-2 text-sm font-medium text-gray-900 hover:text-red-600"
-              >
-                Back
-              </button>
-              <button
-                onClick={() => setCurrentStep('truck-rental')}
-                className="px-4 py-2 bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-lg font-medium"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        );
+          )}
+        </div>
 
-      case 'truck-rental':
-        return (
-          <div className="space-y-6">
-            <h3 className="text-xl font-semibold text-gray-900">Truck Rental</h3>
-            {calculatorState.moveType === 'one-way' ? (
-              <div>
-                <label className={commonStyles.label}>One-Way Truck Rental Cost (26-foot truck)</label>
-                <div className="mt-1 relative rounded-md shadow-sm">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span className="text-gray-500 sm:text-sm">$</span>
-                  </div>
+        {/* Truck Rental */}
+        <div className="border p-3 rounded space-y-2">
+          {moveType === 'one-way' ? (
+            <>
+              <h3 className="font-semibold text-black">One-Way Truck Rental</h3>
+              <TextField
+                label="Rental City"
+                value={penskeCity}
+                setValue={setPenskeCity}
+              />
+              <NumberField
+                label="One-Way Truck Cost"
+                value={oneWayTruckCost}
+                setValue={setOneWayTruckCost}
+              />
+            </>
+          ) : (
+            <>
+              <h3 className="font-semibold text-black">Round-Trip Truck Rental</h3>
+              <p className="text-sm text-black">
+                Truck Days = Loading Days + Driving Days
+              </p>
+              <NumberField
+                label="Truck Daily Rate ($/day)"
+                value={truckDailyRate}
+                setValue={setTruckDailyRate}
+              />
+              <NumberField
+                label="Truck Mileage Rate ($/mile)"
+                value={truckMileageRate}
+                setValue={setTruckMileageRate}
+              />
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Return Flights & Driver Rates (two-column) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Return Flights (one-way only) */}
+        {moveType === 'one-way' && (
+          <div className="border p-3 rounded space-y-3">
+            <h3 className="font-semibold text-black">Return Flights</h3>
+
+            {/* Nearest airport + Amadeus lookup */}
+            {nearestAirportName && (
+              <div className="space-y-2">
+                <label className="block text-black">
+                  <span className="font-medium">Nearest Airport:</span>
                   <input
-                    type="number"
-                    value={calculatorState.truckRental.cost}
-                    onChange={(e) => setCalculatorState(prev => ({
-                      ...prev,
-                      truckRental: { ...prev.truckRental, cost: parseFloat(e.target.value) || 0 }
-                    }))}
-                    className={commonStyles.inputWithPrefix}
-                    placeholder="Enter Penske quote"
+                    readOnly
+                    value={`${nearestAirportName} (${nearestAirportCode})`}
+                    className="mt-1 w-full rounded border border-gray-300 bg-gray-50 p-2 text-black"
                   />
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div>
-                  <label className={commonStyles.label}>Number of Days</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={calculatorState.truckRental.days}
-                    onChange={(e) => setCalculatorState(prev => ({
-                      ...prev,
-                      truckRental: { ...prev.truckRental, days: parseInt(e.target.value) || 0 }
-                    }))}
-                    className={commonStyles.input}
-                  />
-                </div>
+                </label>
+
+                <button
+                  onClick={handleCheckFlightPrice}
+                  className="w-full rounded bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600"
+                >
+                  Get Flight Price
+                </button>
               </div>
             )}
-            <div className="flex justify-between">
-              <button
-                onClick={() => setCurrentStep('packing')}
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
-              >
-                Back
-              </button>
-              <button
-                onClick={() => setCurrentStep(calculatorState.moveType === 'one-way' ? 'plane-tickets' : 'review')}
-                className="px-4 py-2 bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-lg"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        );
 
-      case 'plane-tickets':
-        if (calculatorState.moveType !== 'one-way') return null;
+            <NumberField
+              label="How many guys flying back?"
+              value={numReturnFlights}
+              setValue={setNumReturnFlights}
+            />
+            <NumberField
+              label="Flight Ticket Rate"
+              value={flightTicketRate}
+              setValue={setFlightTicketRate}
+            />
+          </div>
+        )}
+
+        {/* Driver Hourly Rates */}
+        <div className="border p-3 rounded space-y-2">
+          <h3 className="font-semibold text-black">Driver Hourly Rates</h3>
+          {moveType === 'one-way' && (
+            <NumberField
+              label="One-Way Rate ($/hr)"
+              value={oneWayDriverHourly}
+              setValue={setOneWayDriverHourly}
+            />
+          )}
+          {moveType === 'round-trip' && (
+            <NumberField
+              label="Round-Trip Rate ($/hr)"
+              value={roundTripDriverHourly}
+              setValue={setRoundTripDriverHourly}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Final Cost Breakdown */}
+      {(() => {
+        const costs = calculateCost();
         return (
-          <div className="space-y-6">
-            <h3 className="text-xl font-semibold text-gray-900">Return Flights</h3>
-            <div>
-              <label className={commonStyles.label}>Number of Return Tickets Needed</label>
-              <input
-                type="number"
-                min="1"
-                value={calculatorState.returnFlights}
-                onChange={(e) => setCalculatorState(prev => ({
-                  ...prev,
-                  returnFlights: parseInt(e.target.value) || 0
-                }))}
-                className={commonStyles.input}
-              />
+          <div className="border p-3 rounded space-y-4 bg-gray-50">
+            <h3 className="font-bold text-lg text-black">Cost Breakdown</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <LineItem label="Driver Pay" value={costs.driverPay} />
+              <LineItem label="Fuel" value={costs.fuelCost} />
+              <LineItem label="Loading Labor" value={costs.laborCost} />
+              {needsHotel && <LineItem label="Hotel" value={costs.hotelCost} />}
+              {needsHotel && <LineItem label="Per Diem" value={costs.perDiemCost} />}
+              {needsPacking && <LineItem label="Packing" value={costs.packingCost} />}
+              <LineItem label="Truck Cost" value={costs.truckCost} />
+              {moveType === 'one-way' && (
+                <LineItem label="Flight Cost" value={costs.flightCost} />
+              )}
+              <LineItem label="Toll Cost" value={costs.tollCost} />
             </div>
-            <div className={commonStyles.costDisplay}>
-              <p className="text-sm text-gray-900">Cost per ticket: ${calculatorState.adjustments.flightTicketRate}</p>
-              <p className="text-lg font-semibold text-gray-900 mt-2">
-                Total Flight Cost: ${(calculatorState.returnFlights * calculatorState.adjustments.flightTicketRate).toFixed(2)}
-              </p>
+            <hr />
+            <div className="flex justify-between font-bold text-xl text-black">
+              <span>Total</span>
+              <span>${costs.total.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between">
-              <button
-                onClick={() => setCurrentStep('truck-rental')}
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
-              >
-                Back
-              </button>
-              <button
-                onClick={() => setCurrentStep('review')}
-                className="px-4 py-2 bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-lg"
-              >
-                Next
-              </button>
+            {/* Send back to SmartMoving */}
+            <div className="mt-4">
+            <button
+              disabled={!selectedLead}
+              onClick={async () => {
+                if (!selectedLead) return;
+                try {
+                  const res = await fetch('/services', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ lead: selectedLead, total: costs.total })
+                  });
+                  const json = await res.json();
+                  if (!json.ok) throw new Error(json.message);
+                  alert('✅ Total sent to SmartMoving!');
+                } catch (err) {
+                  console.error(err);
+                  alert('❌ Failed to send total');
+                }
+              }}
+              className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+            >
+              Send to SmartMoving
+            </button>
+            </div>
+
+            {/* Extra info lines */}
+            <div className="mt-2 text-sm text-black">
+              <p>GPS Drive Hours: {gpsDriveHours.toFixed(1)}, Adjusted: {costs.adjustedDriveHours.toFixed(1)}</p>
+              <p>Driving Days (9hr rule): {costs.drivingDays}</p>
+              <p>Loading Days: {numLaborDays}</p>
+              <p>Total Job Days: {totalJobDays}</p>
             </div>
           </div>
         );
+      })()}
+    </div>
+  );
+}
 
-      case 'review':
-        const costs = calculateTotalCost();
-        return (
-          <div className="space-y-6">
-            <h3 className="text-xl font-semibold text-gray-900">Review Quote</h3>
-            <div className={commonStyles.costDisplay}>
-              <div className="grid grid-cols-2 gap-4">
-                {Object.entries(costs).map(([key, value]) => {
-                  if (key === 'total') return null;
-                  if (key === 'flightCost' && calculatorState.moveType !== 'one-way') return null;
-                  if (key === 'packingCost' && !calculatorState.needsPacking) return null;
-                  
-                  return (
-                    <div key={key} className="p-3 bg-gray-50 rounded-lg border border-red-100">
-                      <span className="text-sm text-gray-700">
-                        {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                      </span>
-                      <p className="text-lg font-medium text-gray-900 mt-2">${value.toFixed(2)}</p>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="border-t-2 border-red-200 pt-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-xl font-semibold text-gray-900">Total Estimate</span>
-                  <span className="text-3xl font-bold text-red-600">${costs.total.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-between">
-              <button
-                onClick={() => setCurrentStep(calculatorState.moveType === 'one-way' ? 'plane-tickets' : 'truck-rental')}
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
-              >
-                Back
-              </button>
-              <div className="space-x-4">
-                <button
-                  onClick={() => setIsAdjustmentModalOpen(true)}
-                  className="px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700"
-                >
-                  Adjust Estimate
-                </button>
-                <button
-                  onClick={handleQuoteApproval}
-                  className="px-4 py-2 bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-lg"
-                >
-                  Approve Quote
-                </button>
-              </div>
-            </div>
-          </div>
-        );
+/** Basic text input field */
+function TextField({
+  label,
+  value,
+  setValue
+}: {
+  label: string;
+  value: string;
+  setValue: (val: string) => void;
+}) {
+  return (
+    <label className="block text-black mb-2">
+      <span className="font-medium">{label}</span>
+      <input
+        type="text"
+        className="border border-gray-300 rounded w-full mt-1 p-2 text-black"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+      />
+    </label>
+  );
+}
 
-      default:
-        return null;
+function NumberField({
+  label,
+  value,
+  setValue
+}: {
+  label: string;
+  value: number;
+  setValue: (val: number) => void;
+}) {
+  const [localValue, setLocalValue] = useState(value === 0 ? '' : String(value));
+
+  useEffect(() => {
+    if (value === 0) {
+      setLocalValue('');
+    } else {
+      setLocalValue(String(value));
     }
-  };
+  }, [value]);
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value;
+    setLocalValue(raw);
+
+    if (raw.trim() === '') {
+      setValue(0);
+      return;
+    }
+    const parsed = parseFloat(raw);
+    if (!isNaN(parsed)) {
+      setValue(parsed);
+    }
+  }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
-      {/* Top Navigation Bar */}
-      <nav className="bg-white shadow-sm">
-        <div className="px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-red-600 to-pink-600 bg-clip-text text-transparent">
-                PoinDex Quote Calculator 
-              </h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-                  {user?.firstName?.[0] || 'U'}
-                </div>
-                <span className="text-gray-700">{user?.firstName}</span>
-              </div>
-              <button
-                onClick={() => signOut()}
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 focus:outline-none"
-              >
-                Log Out
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      {/* View Toggle Bar */}
-      <div className="bg-gray-100 border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="py-3 flex justify-center space-x-4">
-            <ViewToggle currentView={view} viewType="split" label="Split View" />
-            <ViewToggle currentView={view} viewType="leads" label="Full Leads" />
-            <ViewToggle currentView={view} viewType="calculator" label="Full Calculator" />
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content Area */}
-      <div className="flex-1 overflow-hidden">
-        <div className={`h-full ${view === 'split' ? 'grid grid-cols-2 gap-6 p-6' : ''}`}>
-          {/* Leads Table */}
-          {(view === 'split' || view === 'leads') && (
-            <div className={`flex flex-col bg-white shadow-sm ${view === 'split' ? 'rounded-lg' : ''}`}>
-              <div className="p-6 border-b border-gray-200">
-                <div className="flex justify-between items-center">
-                  <h2 className="text-2xl font-semibold text-gray-800">Leads</h2>
-                  <button className="px-4 py-2 bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-lg hover:from-red-600 hover:to-pink-700 transition-colors duration-200">
-                    Add New Lead
-                  </button>
-                </div>
-              </div>
-              <div className="flex-1 overflow-auto">
-                {isLoading ? (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
-                  </div>
-                ) : error ? (
-                  <div className="flex items-center justify-center h-full text-red-600">
-                    {error}
-                  </div>
-                ) : (
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50 sticky top-0">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Opp Status</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service Date</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Opportunity Type</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Move Size</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Age</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {leads.map((lead) => (
-                        <tr key={lead.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <StatusBadge status={lead.status as OppStatus} />
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{lead.moveType}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{lead.serviceDate}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">{lead.customerName}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{lead.branch}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{lead.opportunityType}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{lead.pickupAddress}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{lead.moveSize}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{lead.leadSource}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-500">
-                              {new Date(lead.createdAt).toLocaleDateString()}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <button 
-                              onClick={() => handleDeleteLead(lead.id)}
-                              className="text-red-600 hover:text-red-900"
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Quote Calculator */}
-          {(view === 'split' || view === 'calculator') && (
-            <div className={`flex flex-col bg-white shadow-sm ${view === 'split' ? 'rounded-lg' : ''}`}>
-              <div className="p-6 border-b border-gray-200">
-                <h2 className="text-2xl font-semibold text-gray-800">Quote Calculator</h2>
-              </div>
-              <div className="flex-1 p-6 overflow-auto">
-                <div className={`${view !== 'split' ? 'max-w-2xl mx-auto w-full' : ''}`}>
-                  {renderCalculatorStep()}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-      <AdjustmentModal
-        isOpen={isAdjustmentModalOpen}
-        onClose={() => setIsAdjustmentModalOpen(false)}
-        adjustments={calculatorState.adjustments}
-        onSave={(newAdjustments) => {
-          setCalculatorState(prev => ({
-            ...prev,
-            adjustments: newAdjustments
-          }));
-        }}
+    <label className="block text-black mb-2">
+      <span className="font-medium">{label}</span>
+      <input
+        type="number"
+        className="border border-gray-300 rounded w-full mt-1 p-2 text-black"
+        value={localValue}
+        onChange={handleChange}
       />
+    </label>
+  );
+}
+
+/** A row for cost breakdown items */
+function LineItem({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex justify-between bg-white p-2 rounded text-black">
+      <span>{label}</span>
+      <span>${value.toFixed(2)}</span>
     </div>
   );
 }
