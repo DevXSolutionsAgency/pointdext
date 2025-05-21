@@ -457,6 +457,13 @@ function SinglePageCalculator(props: {
     }
   }
 
+  async function handleAddStop(){
+    // To DO
+    // Add functionality for adding multiple stops when button is clicked
+    // This should create new text fields for inputting additional stops addresses
+
+  }
+
   // 2) Handle check flight price: calls /api/calculate-flight
   async function handleCheckFlightPrice() {
     if (!nearestAirportCode) {
@@ -609,7 +616,12 @@ function SinglePageCalculator(props: {
 
       {/* Addresses */}
       <div className="border p-3 rounded space-y-3">
-        <h3 className="font-semibold text-black">Addresses</h3>
+        <div className='flex flex-row'>
+          <h3 className="font-semibold text-black">Addresses</h3>
+          <button onClick={handleAddStop} className='px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 justify-end'>
+            Add Stop
+          </button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <TextField
             label="Warehouse (Start)"
