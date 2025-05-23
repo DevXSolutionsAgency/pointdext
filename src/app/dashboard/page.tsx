@@ -967,7 +967,7 @@ function SinglePageCalculator(props: {
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <LineItem label="Driver Pay" value={costs.driverPay} />
               <LineItem label="Fuel" value={costs.fuelCost} />
-              <LineItem label="Loading Labor" value={costs.laborCost} />
+              <LineItem label="Loading + Unloading Labor" value={costs.laborCost} />
               {needsHotel && <LineItem label="Hotel" value={costs.hotelCost} />}
               {needsHotel && (
                 <LineItem label="Per Diem" value={costs.perDiemCost} />
