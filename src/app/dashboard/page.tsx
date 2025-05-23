@@ -85,6 +85,8 @@ export default function DashboardPage() {
   const [numDrivers, setNumDrivers] = useState(1);
   const [numWorkers, setNumWorkers] = useState(2);
   const [numLaborDays, setNumLaborDays] = useState(1);
+  const [needsUnloaders, setNeedsUnloaders] = useState(false);
+  const [unloadersRate, setUnloadersRate]   = useState(0);
 
   const [needsPacking, setNeedsPacking] = useState(false);
 
@@ -230,6 +232,10 @@ export default function DashboardPage() {
                 setGasPrice={setGasPrice}
                 laborRate={laborRate}
                 setLaborRate={setLaborRate}
+                needsUnloaders={needsUnloaders}
+                setNeedsUnloaders={setNeedsUnloaders}
+                unloadersRate={unloadersRate}
+                setUnloadersRate={setUnloadersRate}
                 needsHotel={needsHotel}
                 setNeedsHotel={setNeedsHotel}
                 hotelRate={hotelRate}
@@ -349,6 +355,11 @@ function SinglePageCalculator(props: {
   numLaborDays: number;
   setNumLaborDays: (v: number) => void;
 
+  needsUnloaders: boolean;
+  setNeedsUnloaders: (v: boolean) => void;
+  unloadersRate: number;
+  setUnloadersRate: (v: number) => void;
+
   // packing
   needsPacking: boolean;
   setNeedsPacking: (v: boolean) => void;
@@ -388,9 +399,9 @@ function SinglePageCalculator(props: {
     numDrivers, setNumDrivers,
     numWorkers, setNumWorkers,
     numLaborDays, setNumLaborDays,
+    needsUnloaders, setNeedsUnloaders,
+    unloadersRate, setUnloadersRate,
     needsPacking, setNeedsPacking,
-    penskeCity, setPenskeCity,
-    oneWayTruckCost, setOneWayTruckCost,
     truckDailyRate, setTruckDailyRate,
     truckMileageRate, setTruckMileageRate,
     numReturnFlights, setNumReturnFlights,
@@ -532,7 +543,9 @@ function SinglePageCalculator(props: {
     const gallons = totalMiles / 5; 
     const fuelCost = gallons * gasPrice;
 
-    const laborCost = numWorkers * numLaborDays * laborRate;
+    const laborCost =
+      numWorkers * numLaborDays * laborRate +
+      (needsUnloaders ? unloadersRate : 0);
 
     let hotelCost = 0;
     let perDiemCost = 0;
@@ -755,23 +768,35 @@ function SinglePageCalculator(props: {
         {/* Labor card */}
         <div className="rounded border p-3 space-y-2">
           <h3 className="font-semibold text-black">Labor</h3>
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <NumberField
-              label="# of Loaders"
-              value={numWorkers}
-              setValue={setNumWorkers}
-            />
-            <NumberField
-              label="# of Days"
-              value={numLaborDays}
-              setValue={setNumLaborDays}
-            />
+            <NumberField label="# of Loaders" value={numWorkers} setValue={setNumWorkers} />
+            <NumberField label="# of Days"    value={numLaborDays} setValue={setNumLaborDays} />
           </div>
+
           <NumberField
             label="Daily Rate ($/day/guy)"
             value={laborRate}
             setValue={setLaborRate}
           />
+
+          {/* 3rd-party unloaders */}
+          <div className="flex items-center space-x-2 pt-2">
+            <input
+              type="checkbox"
+              checked={needsUnloaders}
+              onChange={(e) => setNeedsUnloaders(e.target.checked)}
+            />
+            <span className="text-black">3rd Party Unloaders Needed?</span>
+          </div>
+
+          {needsUnloaders && (
+            <NumberField
+              label="Unloaders Rate ($)"
+              value={unloadersRate}
+              setValue={setUnloadersRate}
+            />
+          )}
         </div>
       </div>
   
