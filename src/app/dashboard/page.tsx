@@ -82,6 +82,7 @@ export default function DashboardPage() {
   const [oneWayDriverHourly, setOneWayDriverHourly] = useState(40);
   const [roundTripDriverHourly, setRoundTripDriverHourly] = useState(50);
 
+  const [numDrivers, setNumDrivers] = useState(1);
   const [numWorkers, setNumWorkers] = useState(2);
   const [numLaborDays, setNumLaborDays] = useState(1);
 
@@ -239,6 +240,8 @@ export default function DashboardPage() {
                 setOneWayDriverHourly={setOneWayDriverHourly}
                 roundTripDriverHourly={roundTripDriverHourly}
                 setRoundTripDriverHourly={setRoundTripDriverHourly}
+                numDrivers={numDrivers}
+                setNumDrivers={setNumDrivers}
                 numWorkers={numWorkers}
                 setNumWorkers={setNumWorkers}
                 numLaborDays={numLaborDays}
@@ -338,7 +341,9 @@ function SinglePageCalculator(props: {
   roundTripDriverHourly: number;
   setRoundTripDriverHourly: (v: number) => void;
 
-  // loading labor
+  // labor
+  numDrivers: number;
+  setNumDrivers: (v: number) => void;
   numWorkers: number;
   setNumWorkers: (v: number) => void;
   numLaborDays: number;
@@ -380,6 +385,7 @@ function SinglePageCalculator(props: {
     perDiemRate, setPerDiemRate,
     oneWayDriverHourly, setOneWayDriverHourly,
     roundTripDriverHourly, setRoundTripDriverHourly,
+    numDrivers, setNumDrivers,
     numWorkers, setNumWorkers,
     numLaborDays, setNumLaborDays,
     needsPacking, setNeedsPacking,
@@ -391,6 +397,13 @@ function SinglePageCalculator(props: {
     flightTicketRate, setFlightTicketRate,
     selectedLead,
   } = props;
+
+  const [stops, setStops] = useState<string[]>([]);
+  const handleAddStop     = () => setStops((s) => [...s, '']);
+  const handleRemoveStop  = (idx: number) =>
+    setStops((s) => s.filter((_, i) => i !== idx));
+  const setStop           = (idx: number, val: string) =>
+    setStops((s) => s.map((v, i) => (i === idx ? val : v)));
 
   const [packingItems, setPackingItems] = useState(() => defaultPackingItems);
 
@@ -415,28 +428,26 @@ function SinglePageCalculator(props: {
         moveType,
         warehouse: warehouseStart,
         pickup,
+        stops: stops.filter((s) => s.trim() !== ''),   
         delivery,
-        returnWarehouse: warehouseReturn
+        returnWarehouse: warehouseReturn,
       };
 
       const res = await fetch('/api/calculate-distance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || 'Failed to calculate route');
       }
       const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to calculate route');
-      }
+      if (!data.success) throw new Error(data.error || 'Failed to calculate route');
 
-      // { distance, duration, tolls, nearestAirport }
-      const { distance, duration, tolls,
-        nearestAirportName: apName,
-        nearestAirportCode: apCode } = data.data;
+      /* distance payload unchanged */
+      const { distance, duration, tolls, nearestAirportName: apName, nearestAirportCode: apCode } =
+        data.data;
 
       setTotalMiles(distance);
       setGpsDriveHours(duration / 60);
@@ -450,18 +461,15 @@ function SinglePageCalculator(props: {
         setNearestAirportCode('');
       }
 
-      alert(`Route = ${distance.toFixed(1)} miles, ~${(duration / 60).toFixed(1)} hours\nTolls: ${tolls}`);
+      alert(
+        `Route = ${distance.toFixed(1)} miles, ~${(duration / 60).toFixed(
+          1,
+        )} hours\nTolls: ${tolls}`,
+      );
     } catch (err: any) {
       alert(`Error calculating route: ${err.message}`);
       console.error(err);
     }
-  }
-
-  async function handleAddStop(){
-    // To DO
-    // Add functionality for adding multiple stops when button is clicked
-    // This should create new text fields for inputting additional stops addresses
-
   }
 
   // 2) Handle check flight price: calls /api/calculate-flight
@@ -616,9 +624,13 @@ function SinglePageCalculator(props: {
 
       {/* Addresses */}
       <div className="border p-3 rounded space-y-3">
-        <div className='flex flex-row'>
+        <div className="flex items-center justify-between">
           <h3 className="font-semibold text-black">Addresses</h3>
-          <button onClick={handleAddStop} className='px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 justify-end'>
+
+          <button
+            onClick={handleAddStop}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
             Add Stop
           </button>
         </div>
@@ -640,6 +652,53 @@ function SinglePageCalculator(props: {
             value={pickup}
             setValue={props.setPickup}
           />
+          
+          {/* stops */}
+          {stops.map((stop, idx) => (
+            <div key={idx} className="mb-2">
+              {/* label text + trash icon */}
+              <div className="flex items-center">
+                <label
+                  htmlFor={`stop-${idx}`}
+                  className="font-medium text-black"
+                >
+                  {`Stop ${idx + 1}`}
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => handleRemoveStop(idx)}
+                  title="Remove stop"
+                  className="ml-2 inline-flex h-5 w-5 items-center justify-center rounded hover:bg-gray-200 focus:outline-none"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    className="h-4 w-4 text-red-400"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M3 6h18M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2m1 0l1 14a2 2 0 01-2 2H8a2 2 0 01-2-2l1-14m3 0v12m4-12v12"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              {/* input box – same width as others */}
+              <input
+                id={`stop-${idx}`}
+                type="text"
+                className="border border-gray-300 rounded w-full mt-1 p-2 text-black"
+                value={stop}
+                onChange={(e) => setStop(idx, e.target.value)}
+              />
+            </div>
+          ))}
+
           <TextField
             label="Delivery"
             value={delivery}
@@ -660,9 +719,10 @@ function SinglePageCalculator(props: {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Loading Labor */}
         <div className="border p-3 rounded space-y-2">
-          <h3 className="font-semibold text-black">Loading Labor</h3>
+          <h3 className="font-semibold text-black">Labor</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <NumberField label="# of Workers" value={numWorkers} setValue={setNumWorkers} />
+            <NumberField label="# of Drivers" value={numDrivers} setValue={setNumDrivers} />
+            <NumberField label="# of Loaders" value={numWorkers} setValue={setNumWorkers} />
             <NumberField label="# of Days" value={numLaborDays} setValue={setNumLaborDays} />
           </div>
           <NumberField
