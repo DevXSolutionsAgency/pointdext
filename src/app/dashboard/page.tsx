@@ -449,8 +449,8 @@ function SinglePageCalculator(props: {
       const { distance, duration, tolls, nearestAirportName: apName, nearestAirportCode: apCode } =
         data.data;
 
-      setTotalMiles(distance);
-      setGpsDriveHours(duration / 60);
+      setTotalMiles(Math.ceil(distance));
+      setGpsDriveHours(Math.ceil(duration / 60));
       setNumTolls(tolls);
 
       if (moveType === 'one-way' && apName && apCode) {
