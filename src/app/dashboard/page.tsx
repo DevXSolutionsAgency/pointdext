@@ -528,7 +528,7 @@ function SinglePageCalculator(props: {
       ? oneWayDriverHourly
       : roundTripDriverHourly;
 
-    const driverPay = adjustedDriveHours * driverRate;
+    const driverPay = numDrivers * adjustedDriveHours * driverRate;
     const gallons = totalMiles / 5; 
     const fuelCost = gallons * gasPrice;
 
@@ -586,60 +586,58 @@ function SinglePageCalculator(props: {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold text-black mb-3">Move Calculator</h2>
-
-      {/* Top row: Move Type & Distance */}
+      <h2 className="mb-3 text-xl font-bold text-black">Move Calculator</h2>
+  
+      {/* Move Type toggle + Calculate Distance */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-        {/* Move Type toggle */}
+        {/* Move Type */}
         <div className="mb-2 md:mb-0">
-          <label className="font-medium mr-3 text-black">Move Type:</label>
-          <button
-            onClick={() => setMoveType('one-way')}
-            className={`px-3 py-1 mr-2 rounded border text-black ${
-              moveType === 'one-way' ? 'border-red-500 bg-red-100' : 'border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            One-Way
-          </button>
-          <button
-            onClick={() => setMoveType('round-trip')}
-            className={`px-3 py-1 rounded border text-black ${
-              moveType === 'round-trip' ? 'border-red-500 bg-red-100' : 'border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            Round-Trip
-          </button>
+          <label className="mr-3 font-medium text-black">Move Type:</label>
+          {(['one-way', 'round-trip'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setMoveType(t)}
+              className={`mr-2 rounded border px-3 py-1 text-black ${
+                moveType === t
+                  ? 'border-red-500 bg-red-100'
+                  : 'border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              {t === 'one-way' ? 'One-Way' : 'Round-Trip'}
+            </button>
+          ))}
         </div>
-
-        {/* "Calculate Distance" */}
-        <div>
-          <button
-            onClick={handleDistanceCalc}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            Calculate Distance
-          </button>
-        </div>
+  
+        {/* Calculate Distance */}
+        <button
+          onClick={handleDistanceCalc}
+          className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+        >
+          Calculate Distance
+        </button>
       </div>
-
-      {/* Addresses */}
-      <div className="border p-3 rounded space-y-3">
+  
+      {/* Addresses & Stops */}
+      <div className="rounded border p-3 space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-black">Addresses</h3>
-
           <button
             onClick={handleAddStop}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
           >
             Add Stop
           </button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {/* Warehouse start */}
           <TextField
             label="Warehouse (Start)"
             value={warehouseStart}
             setValue={props.setWarehouseStart}
           />
+  
+          {/* Warehouse return for round-trip */}
           {moveType === 'round-trip' && (
             <TextField
               label="Warehouse (Return)"
@@ -647,16 +645,13 @@ function SinglePageCalculator(props: {
               setValue={props.setWarehouseReturn}
             />
           )}
-          <TextField
-            label="Pick-up"
-            value={pickup}
-            setValue={props.setPickup}
-          />
-          
-          {/* stops */}
+  
+          {/* Pickup */}
+          <TextField label="Pick-up" value={pickup} setValue={props.setPickup} />
+  
+          {/* Dynamic stops */}
           {stops.map((stop, idx) => (
             <div key={idx} className="mb-2">
-              {/* label text + trash icon */}
               <div className="flex items-center">
                 <label
                   htmlFor={`stop-${idx}`}
@@ -664,7 +659,6 @@ function SinglePageCalculator(props: {
                 >
                   {`Stop ${idx + 1}`}
                 </label>
-
                 <button
                   type="button"
                   onClick={() => handleRemoveStop(idx)}
@@ -687,18 +681,18 @@ function SinglePageCalculator(props: {
                   </svg>
                 </button>
               </div>
-
-              {/* input box – same width as others */}
+  
               <input
                 id={`stop-${idx}`}
                 type="text"
-                className="border border-gray-300 rounded w-full mt-1 p-2 text-black"
+                className="mt-1 w-full rounded border border-gray-300 p-2 text-black"
                 value={stop}
                 onChange={(e) => setStop(idx, e.target.value)}
               />
             </div>
           ))}
-
+  
+          {/* Delivery */}
           <TextField
             label="Delivery"
             value={delivery}
@@ -706,24 +700,71 @@ function SinglePageCalculator(props: {
           />
         </div>
       </div>
-
-      {/* Miles, Hours, Tolls, Gas Price */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <NumberField label="Total Miles" value={totalMiles} setValue={setTotalMiles} />
-        <NumberField label="GPS Drive Hours" value={gpsDriveHours} setValue={setGpsDriveHours} />
-        <NumberField label="# Tolls" value={numTolls} setValue={setNumTolls} />
-        <NumberField label="Gas Price ($/gallon)" value={gasPrice} setValue={setGasPrice} />
+  
+      {/* Miles / Hours / Tolls / Gas */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <NumberField
+          label="Total Miles"
+          value={totalMiles}
+          setValue={setTotalMiles}
+        />
+        <NumberField
+          label="GPS Drive Hours"
+          value={gpsDriveHours}
+          setValue={setGpsDriveHours}
+        />
+        <NumberField
+          label="# Tolls"
+          value={numTolls}
+          setValue={setNumTolls}
+        />
+        <NumberField
+          label="Gas Price ($/gallon)"
+          value={gasPrice}
+          setValue={setGasPrice}
+        />
       </div>
-
-      {/* 2-col: Loading Labor | Hotel & Per Diem */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Loading Labor */}
-        <div className="border p-3 rounded space-y-2">
+  
+      {/* Drivers | Labor */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {/* Drivers card */}
+        <div className="rounded border p-3 space-y-2">
+          <h3 className="font-semibold text-black">Drivers</h3>
+          <NumberField
+            label="# of Drivers"
+            value={numDrivers}
+            setValue={setNumDrivers}
+          />
+          {moveType === 'one-way' && (
+            <NumberField
+              label="One-Way Rate ($/hr)"
+              value={oneWayDriverHourly}
+              setValue={setOneWayDriverHourly}
+            />
+          )}
+          {moveType === 'round-trip' && (
+            <NumberField
+              label="Round-Trip Rate ($/hr)"
+              value={roundTripDriverHourly}
+              setValue={setRoundTripDriverHourly}
+            />
+          )}
+        </div>
+  
+        {/* Labor card */}
+        <div className="rounded border p-3 space-y-2">
           <h3 className="font-semibold text-black">Labor</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <NumberField label="# of Drivers" value={numDrivers} setValue={setNumDrivers} />
-            <NumberField label="# of Loaders" value={numWorkers} setValue={setNumWorkers} />
-            <NumberField label="# of Days" value={numLaborDays} setValue={setNumLaborDays} />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <NumberField
+              label="# of Loaders"
+              value={numWorkers}
+              setValue={setNumWorkers}
+            />
+            <NumberField
+              label="# of Days"
+              value={numLaborDays}
+              setValue={setNumLaborDays}
+            />
           </div>
           <NumberField
             label="Daily Rate ($/day/guy)"
@@ -731,15 +772,139 @@ function SinglePageCalculator(props: {
             setValue={setLaborRate}
           />
         </div>
-
-        {/* Hotel & Per Diem */}
-        <div className="border p-3 rounded space-y-2">
+      </div>
+  
+      {/* Truck rental & (return flights if one-way) */}
+      {moveType === 'round-trip' ? (
+        <div className="rounded border p-3 space-y-2">
+          <h3 className="font-semibold text-black">Round-Trip Truck Rental</h3>
+          <p className="text-sm text-black">
+            Truck Days = Loading Days + Driving Days
+          </p>
+          <NumberField
+            label="Truck Daily Rate ($/day)"
+            value={truckDailyRate}
+            setValue={setTruckDailyRate}
+          />
+          <NumberField
+            label="Truck Mileage Rate ($/mile)"
+            value={truckMileageRate}
+            setValue={setTruckMileageRate}
+          />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {/* One-way truck rental */}
+          <div className="rounded border p-3 space-y-2">
+            <h3 className="font-semibold text-black">One-Way Truck Rental</h3>
+            <TextField
+              label="Rental City"
+              value={penskeCity}
+              setValue={setPenskeCity}
+            />
+            <NumberField
+              label="One-Way Truck Cost"
+              value={oneWayTruckCost}
+              setValue={setOneWayTruckCost}
+            />
+          </div>
+  
+          {/* Return flights */}
+          <div className="rounded border p-3 space-y-3">
+            <h3 className="font-semibold text-black">Return Flights</h3>
+  
+            {nearestAirportName && (
+              <div className="space-y-2">
+                <label className="block text-black">
+                  <span className="font-medium">Nearest Airport:</span>
+                  <input
+                    readOnly
+                    value={`${nearestAirportName} (${nearestAirportCode})`}
+                    className="mt-1 w-full rounded border border-gray-300 bg-gray-50 p-2 text-black"
+                  />
+                </label>
+                <button
+                  onClick={handleCheckFlightPrice}
+                  className="w-full rounded bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600"
+                >
+                  Get Flight Price
+                </button>
+              </div>
+            )}
+  
+            <NumberField
+              label="How many guys flying back?"
+              value={numReturnFlights}
+              setValue={setNumReturnFlights}
+            />
+            <NumberField
+              label="Flight Ticket Rate"
+              value={flightTicketRate}
+              setValue={setFlightTicketRate}
+            />
+          </div>
+        </div>
+      )}
+  
+      {/* Packing supplies | Hotel & Per Diem */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {/* Packing */}
+        <div className="rounded border p-3 space-y-2">
+          <h3 className="font-semibold text-black">Packing Supplies</h3>
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              checked={needsPacking}
+              onChange={(e) => setNeedsPacking(e.target.checked)}
+            />
+            <span className="text-black">Needs packing supplies?</span>
+          </div>
+  
+          {needsPacking && (
+            <div className="mt-2 space-y-3">
+              {packingItems.map((item, idx) => (
+                <div
+                  key={item.name}
+                  className="grid grid-cols-3 items-center gap-2"
+                >
+                  <div className="text-black">{item.name}</div>
+                  <div>
+                    <label className="block text-xs text-gray-600">Price</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="mt-1 w-full rounded border border-gray-300 p-1 text-black"
+                      value={item.price}
+                      onChange={(e) =>
+                        updatePackingItem(idx, 'price', parseFloat(e.target.value) || 0)
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600">Qty</label>
+                    <input
+                      type="number"
+                      className="mt-1 w-full rounded border border-gray-300 p-1 text-black"
+                      value={item.quantity}
+                      onChange={(e) =>
+                        updatePackingItem(idx, 'quantity', parseInt(e.target.value) || 0)
+                      }
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+  
+        {/* Hotel & Per-Diem */}
+        <div className="rounded border p-3 space-y-2">
           <h3 className="font-semibold text-black">Hotel & Per Diem</h3>
           <div className="flex items-center space-x-2">
             <input
               type="checkbox"
               checked={needsHotel}
-              onChange={e => setNeedsHotel(e.target.checked)}
+              onChange={(e) => setNeedsHotel(e.target.checked)}
             />
             <span className="text-black">Need Hotel?</span>
           </div>
@@ -759,221 +924,73 @@ function SinglePageCalculator(props: {
           )}
         </div>
       </div>
-
-      {/* 2-col: Packing Supplies | Truck Rental */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Packing Supplies */}
-        <div className="border p-3 rounded space-y-2">
-          <h3 className="font-semibold text-black">Packing Supplies</h3>
-
-          <div className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              checked={needsPacking}
-              onChange={(e) => setNeedsPacking(e.target.checked)}
-            />
-            <span className="text-black">Needs packing supplies?</span>
-          </div>
-
-          {needsPacking && (
-            <div className="space-y-3 mt-2">
-              {packingItems.map((item, idx) => (
-                <div
-                  key={item.name}
-                  className="grid grid-cols-3 gap-2 items-center"
-                >
-                  <div className="text-black">{item.name}</div>
-
-                  <div>
-                    <label className="block text-xs text-gray-600">Price</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      className="mt-1 w-full rounded border border-gray-300 p-1 text-black"
-                      value={item.price}
-                      onChange={(e) =>
-                        updatePackingItem(
-                          idx,
-                          'price',
-                          parseFloat(e.target.value) || 0,
-                        )
-                      }
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs text-gray-600">Qty</label>
-                    <input
-                      type="number"
-                      className="mt-1 w-full rounded border border-gray-300 p-1 text-black"
-                      value={item.quantity}
-                      onChange={(e) =>
-                        updatePackingItem(
-                          idx,
-                          'quantity',
-                          parseInt(e.target.value) || 0,
-                        )
-                      }
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Truck Rental */}
-        <div className="border p-3 rounded space-y-2">
-          {moveType === 'one-way' ? (
-            <>
-              <h3 className="font-semibold text-black">One-Way Truck Rental</h3>
-              <TextField
-                label="Rental City"
-                value={penskeCity}
-                setValue={setPenskeCity}
-              />
-              <NumberField
-                label="One-Way Truck Cost"
-                value={oneWayTruckCost}
-                setValue={setOneWayTruckCost}
-              />
-            </>
-          ) : (
-            <>
-              <h3 className="font-semibold text-black">Round-Trip Truck Rental</h3>
-              <p className="text-sm text-black">
-                Truck Days = Loading Days + Driving Days
-              </p>
-              <NumberField
-                label="Truck Daily Rate ($/day)"
-                value={truckDailyRate}
-                setValue={setTruckDailyRate}
-              />
-              <NumberField
-                label="Truck Mileage Rate ($/mile)"
-                value={truckMileageRate}
-                setValue={setTruckMileageRate}
-              />
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Return Flights & Driver Rates (two-column) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Return Flights (one-way only) */}
-        {moveType === 'one-way' && (
-          <div className="border p-3 rounded space-y-3">
-            <h3 className="font-semibold text-black">Return Flights</h3>
-
-            {/* Nearest airport + Amadeus lookup */}
-            {nearestAirportName && (
-              <div className="space-y-2">
-                <label className="block text-black">
-                  <span className="font-medium">Nearest Airport:</span>
-                  <input
-                    readOnly
-                    value={`${nearestAirportName} (${nearestAirportCode})`}
-                    className="mt-1 w-full rounded border border-gray-300 bg-gray-50 p-2 text-black"
-                  />
-                </label>
-
-                <button
-                  onClick={handleCheckFlightPrice}
-                  className="w-full rounded bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600"
-                >
-                  Get Flight Price
-                </button>
-              </div>
-            )}
-
-            <NumberField
-              label="How many guys flying back?"
-              value={numReturnFlights}
-              setValue={setNumReturnFlights}
-            />
-            <NumberField
-              label="Flight Ticket Rate"
-              value={flightTicketRate}
-              setValue={setFlightTicketRate}
-            />
-          </div>
-        )}
-
-        {/* Driver Hourly Rates */}
-        <div className="border p-3 rounded space-y-2">
-          <h3 className="font-semibold text-black">Driver Hourly Rates</h3>
-          {moveType === 'one-way' && (
-            <NumberField
-              label="One-Way Rate ($/hr)"
-              value={oneWayDriverHourly}
-              setValue={setOneWayDriverHourly}
-            />
-          )}
-          {moveType === 'round-trip' && (
-            <NumberField
-              label="Round-Trip Rate ($/hr)"
-              value={roundTripDriverHourly}
-              setValue={setRoundTripDriverHourly}
-            />
-          )}
-        </div>
-      </div>
-
-      {/* Final Cost Breakdown */}
+  
+      {/* Cost Breakdown */}
       {(() => {
         const costs = calculateCost();
+        const totalJobDays = costs.drivingDays + numLaborDays;
         return (
-          <div className="border p-3 rounded space-y-4 bg-gray-50">
-            <h3 className="font-bold text-lg text-black">Cost Breakdown</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="rounded border bg-gray-50 p-3 space-y-4">
+            <h3 className="text-lg font-bold text-black">Cost Breakdown</h3>
+  
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <LineItem label="Driver Pay" value={costs.driverPay} />
               <LineItem label="Fuel" value={costs.fuelCost} />
               <LineItem label="Loading Labor" value={costs.laborCost} />
               {needsHotel && <LineItem label="Hotel" value={costs.hotelCost} />}
-              {needsHotel && <LineItem label="Per Diem" value={costs.perDiemCost} />}
-              {needsPacking && <LineItem label="Packing" value={costs.packingCost} />}
+              {needsHotel && (
+                <LineItem label="Per Diem" value={costs.perDiemCost} />
+              )}
+              {needsPacking && (
+                <LineItem label="Packing" value={costs.packingCost} />
+              )}
               <LineItem label="Truck Cost" value={costs.truckCost} />
               {moveType === 'one-way' && (
                 <LineItem label="Flight Cost" value={costs.flightCost} />
               )}
               <LineItem label="Toll Cost" value={costs.tollCost} />
             </div>
+  
             <hr />
-            <div className="flex justify-between font-bold text-xl text-black">
+  
+            <div className="flex justify-between text-xl font-bold text-black">
               <span>Total</span>
               <span>${costs.total.toFixed(2)}</span>
             </div>
-            {/* Send back to SmartMoving */}
-            <div className="mt-4">
-            <button
-              disabled={!selectedLead}
-              onClick={async () => {
-                if (!selectedLead) return;
-                try {
-                  const res = await fetch('/services', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ lead: selectedLead, total: costs.total })
-                  });
-                  const json = await res.json();
-                  if (!json.ok) throw new Error(json.message);
-                  alert('✅ Total sent to SmartMoving!');
-                } catch (err) {
-                  console.error(err);
-                  alert('❌ Failed to send total');
-                }
-              }}
-              className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
-            >
-              Send to SmartMoving
-            </button>
+  
+            {/* Send to SmartMoving */}
+            <div>
+              <button
+                disabled={!selectedLead}
+                onClick={async () => {
+                  if (!selectedLead) return;
+                  try {
+                    const res = await fetch('/services', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ lead: selectedLead, total: costs.total }),
+                    });
+                    const json = await res.json();
+                    if (!json.ok) throw new Error(json.message);
+                    alert('✅ Total sent to SmartMoving!');
+                  } catch (err) {
+                    console.error(err);
+                    alert('❌ Failed to send total');
+                  }
+                }}
+                className="rounded bg-green-500 px-4 py-2 text-white hover:bg-green-600 disabled:opacity-50"
+              >
+                Send to SmartMoving
+              </button>
             </div>
-
-            {/* Extra info lines */}
-            <div className="mt-2 text-sm text-black">
-              <p>GPS Drive Hours: {gpsDriveHours.toFixed(1)}, Adjusted: {costs.adjustedDriveHours.toFixed(1)}</p>
-              <p>Driving Days (9hr rule): {costs.drivingDays}</p>
+  
+            {/* Extra info */}
+            <div className="text-sm text-black">
+              <p>
+                GPS Drive Hours: {gpsDriveHours.toFixed(1)}, Adjusted:{' '}
+                {costs.adjustedDriveHours.toFixed(1)}
+              </p>
+              <p>Driving Days (9 hr rule): {costs.drivingDays}</p>
               <p>Loading Days: {numLaborDays}</p>
               <p>Total Job Days: {totalJobDays}</p>
             </div>
@@ -981,7 +998,7 @@ function SinglePageCalculator(props: {
         );
       })()}
     </div>
-  );
+  );  
 }
 
 /** Basic text input field */
