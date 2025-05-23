@@ -173,10 +173,10 @@ export default function DashboardPage() {
                               {lead.customerName ?? 'N/A'}
                             </td>
 
-                            <td className="px-4 py-3 truncate text-gray-700">
+                            <td className="px-4 py-3 text-gray-700">
                               {lead.originAddressFull ?? 'N/A'}
                             </td>
-                            <td className="px-4 py-3 truncate text-gray-700">
+                            <td className="px-4 py-3 text-gray-700">
                               {lead.destinationAddressFull ?? 'N/A'}
                             </td>
 
@@ -545,13 +545,14 @@ function SinglePageCalculator(props: {
       ? packingItems.reduce((sum, it) => sum + it.price * it.quantity, 0)
       : 0;
 
-    let truckCost = 0;
-    if (moveType === 'one-way') {
-      truckCost = oneWayTruckCost;
-    } else {
-      const roundTripTruckDays = numLaborDays + drivingDays;
-      truckCost = (roundTripTruckDays * truckDailyRate) + (totalMiles * truckMileageRate);
-    }
+      let truckCost = 0;
+      if (moveType === 'one-way') {
+        const oneWayTruckDays = numLaborDays + drivingDays;
+        truckCost = oneWayTruckDays * truckDailyRate + totalMiles * truckMileageRate;
+      } else {
+        const roundTripTruckDays = numLaborDays + drivingDays;
+        truckCost = roundTripTruckDays * truckDailyRate + totalMiles * truckMileageRate;
+      }      
 
     let flightCost = 0;
     if (moveType === 'one-way') {
@@ -797,17 +798,22 @@ function SinglePageCalculator(props: {
           {/* One-way truck rental */}
           <div className="rounded border p-3 space-y-2">
             <h3 className="font-semibold text-black">One-Way Truck Rental</h3>
-            <TextField
-              label="Rental City"
-              value={penskeCity}
-              setValue={setPenskeCity}
+            <p className="text-sm text-black">
+              Truck Days = Loading Days + Driving Days
+            </p>
+
+            <NumberField
+              label="Truck Daily Rate ($/day)"
+              value={truckDailyRate}
+              setValue={setTruckDailyRate}
             />
             <NumberField
-              label="One-Way Truck Cost"
-              value={oneWayTruckCost}
-              setValue={setOneWayTruckCost}
+              label="Truck Mileage Rate ($/mile)"
+              value={truckMileageRate}
+              setValue={setTruckMileageRate}
             />
           </div>
+
   
           {/* Return flights */}
           <div className="rounded border p-3 space-y-3">
