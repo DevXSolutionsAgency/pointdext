@@ -598,10 +598,11 @@ function SinglePageCalculator(props: {
   const costs = calculateCost();
   const totalJobDays = costs.drivingDays + numLaborDays;
 
+
   return (
     <div className="space-y-6 p-2">
       {/* Header with Move Type Selection */}
-      <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-6 shadow-sm">
+      <div className="bg-gradient-to-r from-orange-100 to-orange-50 rounded-xl p-6 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold text-gray-800 mb-2">Move Calculator</h2>
@@ -713,39 +714,39 @@ function SinglePageCalculator(props: {
             Add Stop
           </button>
         </div>
-      </div>
 
-      {/* Route Metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MetricCard
-          label="Total Miles"
-          value={totalMiles}
-          setValue={setTotalMiles}
-          icon="🛣️"
-          unit="miles"
-        />
-        <MetricCard
-          label="Drive Hours"
-          value={gpsDriveHours}
-          setValue={setGpsDriveHours}
-          icon="⏱️"
-          unit="hours"
-        />
-        <MetricCard
-          label="Toll Count"
-          value={numTolls}
-          setValue={setNumTolls}
-          icon="🎫"
-          unit="tolls"
-        />
-        <MetricCard
-          label="Gas Price"
-          value={gasPrice}
-          setValue={setGasPrice}
-          icon="⛽"
-          unit="$/gal"
-          prefix="$"
-        />
+        {/* Route Metrics */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <MetricCard
+            label="Total Miles"
+            value={totalMiles}
+            setValue={setTotalMiles}
+            icon="🛣️"
+            unit="miles"
+          />
+          <MetricCard
+            label="Drive Hours"
+            value={gpsDriveHours}
+            setValue={setGpsDriveHours}
+            icon="⏱️"
+            unit="hours"
+          />
+          <MetricCard
+            label="Toll Count"
+            value={numTolls}
+            setValue={setNumTolls}
+            icon="🎫"
+            unit="tolls"
+          />
+          <MetricCard
+            label="Gas Price"
+            value={gasPrice}
+            setValue={setGasPrice}
+            icon="⛽"
+            unit="$/gal"
+            prefix="$"
+          />
+        </div>
       </div>
 
       {/* Personnel Section */}
@@ -984,6 +985,7 @@ function SinglePageCalculator(props: {
                         <input
                           type="number"
                           step="0.01"
+                          onWheel={(e) => e.currentTarget.blur()}
                           className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1 text-sm text-black focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
                           value={item.price}
                           onChange={(e) =>
@@ -997,7 +999,6 @@ function SinglePageCalculator(props: {
                           type="number"
                           className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1 text-sm text-black focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
                           value={item.quantity}
-
                           onChange={(e) =>
                             updatePackingItem(idx, 'quantity', parseInt(e.target.value) || 0)
                           }
@@ -1220,6 +1221,7 @@ function NumberField({
         )}
         <input
           type="number"
+          onWheel={(e) => e.currentTarget.blur()}
           className={`w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 ${
             prefix ? 'pl-8' : ''
           } ${suffix ? 'pr-12' : ''}`}
