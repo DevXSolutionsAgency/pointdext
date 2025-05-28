@@ -598,471 +598,590 @@ function SinglePageCalculator(props: {
   const costs = calculateCost();
   const totalJobDays = costs.drivingDays + numLaborDays;
 
+
   return (
-    <div className="space-y-6">
-      <h2 className="mb-3 text-xl font-bold text-black">Move Calculator</h2>
-  
-      {/* Move Type toggle + Calculate Distance */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-        {/* Move Type */}
-        <div className="mb-2 md:mb-0">
-          <label className="mr-3 font-medium text-black">Move Type:</label>
-          {(['one-way', 'round-trip'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setMoveType(t)}
-              className={`mr-2 rounded border px-3 py-1 text-black ${
-                moveType === t
-                  ? 'border-red-500 bg-red-100'
-                  : 'border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              {t === 'one-way' ? 'One-Way' : 'Round-Trip'}
-            </button>
-          ))}
+    <div className="space-y-6 p-2">
+      {/* Header with Move Type Selection */}
+      <div className="bg-gradient-to-r from-orange-100 to-orange-50 rounded-xl p-6 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">Move Calculator</h2>
+            <p className="text-gray-600 text-sm">Configure your move details and get an instant quote</p>
+          </div>
+          
+          {/* Move Type Selection */}
+          <div className="flex gap-2">
+            {(['one-way', 'round-trip'] as const).map((type) => (
+              <button
+                key={type}
+                onClick={() => setMoveType(type)}
+                className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+                  moveType === type
+                    ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white shadow-lg transform scale-105'
+                    : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                }`}
+              >
+                {type === 'one-way' ? '🚚 One-Way' : '🔄 Round-Trip'}
+              </button>
+            ))}
+          </div>
         </div>
-  
-        {/* Calculate Distance */}
-        <button
-          onClick={handleDistanceCalc}
-          className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
-        >
-          Calculate Distance
-        </button>
       </div>
-  
-      {/* Addresses & Stops */}
-      <div className="rounded border p-3 space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-black">Addresses</h3>
+
+      {/* Route Information Section */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-gradient-to-r from-blue-400 to-blue-500 p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="bg-white/20 rounded-lg p-2">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-semibold text-white">Route Details</h3>
+          </div>
           <button
-            onClick={handleAddStop}
-            className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+            onClick={handleDistanceCalc}
+            className="bg-white/20 hover:bg-white/30 text-white px-6 py-2 rounded-lg transition-colors font-medium backdrop-blur-sm"
           >
-            Add Stop
+            Calculate Route →
           </button>
         </div>
-  
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {/* Warehouse start */}
-          <TextField
-            label="Warehouse (Start)"
-            value={warehouseStart}
-            setValue={props.setWarehouseStart}
-          />
-  
-          {/* Warehouse return for round-trip */}
-          {moveType === 'round-trip' && (
+
+        <div className="p-6 space-y-4">
+          {/* Address Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <TextField
-              label="Warehouse (Return)"
-              value={warehouseReturn}
-              setValue={props.setWarehouseReturn}
+              label="📍 Warehouse (Start)"
+              value={warehouseStart}
+              setValue={props.setWarehouseStart}
+              icon="🏭"
             />
-          )}
-  
-          {/* Pickup */}
-          <TextField label="Pick-up" value={pickup} setValue={props.setPickup} />
-  
-          {/* Dynamic stops */}
-          {stops.map((stop, idx) => (
-            <div key={idx} className="mb-2">
-              <div className="flex items-center">
-                <label
-                  htmlFor={`stop-${idx}`}
-                  className="font-medium text-black"
-                >
-                  {`Stop ${idx + 1}`}
-                </label>
+
+            {moveType === 'round-trip' && (
+              <TextField
+                label="📍 Warehouse (Return)"
+                value={warehouseReturn}
+                setValue={props.setWarehouseReturn}
+                icon="🏭"
+              />
+            )}
+
+            <TextField
+              label="📦 Pick-up Location"
+              value={pickup}
+              setValue={props.setPickup}
+              icon="📍"
+            />
+
+            {/* Dynamic stops */}
+            {stops.map((stop, idx) => (
+              <div key={idx} className="relative">
+                <TextField
+                  label={`🚏 Stop ${idx + 1}`}
+                  value={stop}
+                  setValue={(val) => setStop(idx, val)}
+                  icon="📍"
+                />
                 <button
-                  type="button"
                   onClick={() => handleRemoveStop(idx)}
+                  className="absolute right-2 top-8 px-2 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors"
                   title="Remove stop"
-                  className="ml-2 inline-flex h-5 w-5 items-center justify-center rounded hover:bg-gray-200 focus:outline-none"
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                    className="h-4 w-4 text-red-400"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M3 6h18M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2m1 0l1 14a2 2 0 01-2 2H8a2 2 0 01-2-2l1-14m3 0v12m4-12v12"
-                    />
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
                 </button>
               </div>
-  
-              <input
-                id={`stop-${idx}`}
-                type="text"
-                className="mt-1 w-full rounded border border-gray-300 p-2 text-black"
-                value={stop}
-                onChange={(e) => setStop(idx, e.target.value)}
+            ))}
+
+            <TextField
+              label="🏠 Delivery Location"
+              value={delivery}
+              setValue={props.setDelivery}
+              icon="📍"
+            />
+          </div>
+
+          {/* Add Stop button */}
+          <button
+            onClick={handleAddStop}
+            className="mt-2 text-blue-600 hover:text-blue-700 font-medium text-sm flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            Add Stop
+          </button>
+        </div>
+
+        {/* Route Metrics */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <MetricCard
+            label="Total Miles"
+            value={totalMiles}
+            setValue={setTotalMiles}
+            icon="🛣️"
+            unit="miles"
+          />
+          <MetricCard
+            label="Drive Hours"
+            value={gpsDriveHours}
+            setValue={setGpsDriveHours}
+            icon="⏱️"
+            unit="hours"
+          />
+          <MetricCard
+            label="Toll Count"
+            value={numTolls}
+            setValue={setNumTolls}
+            icon="🎫"
+            unit="tolls"
+          />
+          <MetricCard
+            label="Gas Price"
+            value={gasPrice}
+            setValue={setGasPrice}
+            icon="⛽"
+            unit="$/gal"
+            prefix="$"
+          />
+        </div>
+      </div>
+
+      {/* Personnel Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Drivers Card */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="bg-gradient-to-r from-green-700 to-green-900 p-4">
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+              <span>👷 Drivers</span>
+            </h3>
+          </div>
+          <div className="p-6 space-y-4">
+            <NumberField
+              label="Number of Drivers"
+              value={numDrivers}
+              setValue={setNumDrivers}
+              icon="👥"
+            />
+            {moveType === 'one-way' ? (
+              <NumberField
+                label="One-Way Rate"
+                value={oneWayDriverHourly}
+                setValue={setOneWayDriverHourly}
+                icon="💵"
+                prefix="$"
+                suffix="/hr"
+              />
+            ) : (
+              <NumberField
+                label="Round-Trip Rate"
+                value={roundTripDriverHourly}
+                setValue={setRoundTripDriverHourly}
+                icon="💵"
+                prefix="$"
+                suffix="/hr"
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Labor Card */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="bg-gradient-to-r from-purple-600 to-purple-900 p-4">
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+              <span>💪 Labor</span>
+            </h3>
+          </div>
+          <div className="p-6 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <NumberField
+                label="Loaders"
+                value={numWorkers}
+                setValue={setNumWorkers}
+                icon="👥"
+                compact
+              />
+              <NumberField
+                label="Days"
+                value={numLaborDays}
+                setValue={setNumLaborDays}
+                icon="📅"
+                compact
               />
             </div>
-          ))}
-  
-          {/* Delivery */}
-          <TextField
-            label="Delivery"
-            value={delivery}
-            setValue={props.setDelivery}
-          />
-        </div>
-      </div>
-  
-      {/* Miles / Hours / Tolls / Gas */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <NumberField
-          label="Total Miles"
-          value={totalMiles}
-          setValue={setTotalMiles}
-        />
-        <NumberField
-          label="GPS Drive Hours"
-          value={gpsDriveHours}
-          setValue={setGpsDriveHours}
-        />
-        <NumberField
-          label="# Tolls"
-          value={numTolls}
-          setValue={setNumTolls}
-        />
-        <NumberField
-          label="Gas Price ($/gallon)"
-          value={gasPrice}
-          setValue={setGasPrice}
-        />
-      </div>
-  
-      {/* Drivers | Labor */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {/* Drivers card */}
-        <div className="rounded border p-3 space-y-2">
-          <h3 className="font-semibold text-black">Drivers</h3>
-          <NumberField
-            label="# of Drivers"
-            value={numDrivers}
-            setValue={setNumDrivers}
-          />
-          {moveType === 'one-way' && (
             <NumberField
-              label="One-Way Rate ($/hr)"
-              value={oneWayDriverHourly}
-              setValue={setOneWayDriverHourly}
+              label="Daily Rate per Person"
+              value={laborRate}
+              setValue={setLaborRate}
+              icon="💰"
+              prefix="$"
+              suffix="/day"
             />
-          )}
-          {moveType === 'round-trip' && (
-            <NumberField
-              label="Round-Trip Rate ($/hr)"
-              value={roundTripDriverHourly}
-              setValue={setRoundTripDriverHourly}
-            />
-          )}
-        </div>
-  
-        {/* Labor card */}
-        <div className="rounded border p-3 space-y-2">
-          <h3 className="font-semibold text-black">Labor</h3>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <NumberField label="# of Loaders" value={numWorkers} setValue={setNumWorkers} />
-            <NumberField label="# of Days"    value={numLaborDays} setValue={setNumLaborDays} />
+            
+            <div className="pt-4 border-t border-gray-100">
+              <label className="flex items-center justify-between group cursor-pointer">
+                <span className="text-gray-700 font-medium">3rd Party Unloaders</span>
+                <ToggleSwitch
+                  checked={needsUnloaders}
+                  onChange={setNeedsUnloaders}
+                />
+              </label>
+              {needsUnloaders && (
+                <div className="mt-3">
+                  <NumberField
+                    label="Unloaders Rate"
+                    value={unloadersRate}
+                    setValue={setUnloadersRate}
+                    icon="💵"
+                    prefix="$"
+                  />
+                </div>
+              )}
+            </div>
           </div>
-
-          <NumberField
-            label="Daily Rate ($/day/guy)"
-            value={laborRate}
-            setValue={setLaborRate}
-          />
-
-          {/* 3rd-party unloaders */}
-          <div className="flex items-center space-x-2 pt-2">
-            <input
-              type="checkbox"
-              checked={needsUnloaders}
-              onChange={(e) => setNeedsUnloaders(e.target.checked)}
-            />
-            <span className="text-black">3rd Party Unloaders Needed?</span>
-          </div>
-
-          {needsUnloaders && (
-            <NumberField
-              label="Unloaders Rate ($)"
-              value={unloadersRate}
-              setValue={setUnloadersRate}
-            />
-          )}
         </div>
       </div>
-  
-      {/* Truck rental & (return flights if one-way) */}
-      {moveType === 'round-trip' ? (
-        <div className="rounded border p-3 space-y-2">
-          <h3 className="font-semibold text-black">Round-Trip Truck Rental</h3>
-          <p className="text-sm text-black">
-            Truck Days = Loading Days + Driving Days
-          </p>
-          <NumberField
-            label="Truck Daily Rate ($/day)"
-            value={truckDailyRate}
-            setValue={setTruckDailyRate}
-          />
-          <NumberField
-            label="Truck Mileage Rate ($/mile)"
-            value={truckMileageRate}
-            setValue={setTruckMileageRate}
-          />
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {/* One-way truck rental */}
-          <div className="rounded border p-3 space-y-2">
-            <h3 className="font-semibold text-black">One-Way Truck Rental</h3>
-            <p className="text-sm text-black">
-              Truck Days = Loading Days + Driving Days
+
+      {/* Truck & Travel Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Truck Rental Card */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="bg-gradient-to-r from-orange-700 to-orange-900 p-4">
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+              <span>🚚 Truck Rental</span>
+            </h3>
+          </div>
+          <div className="p-6 space-y-4">
+            <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+              📊 Truck Days = Loading Days + Driving Days
             </p>
-
             <NumberField
-              label="Truck Daily Rate ($/day)"
+              label="Daily Rate"
               value={truckDailyRate}
               setValue={setTruckDailyRate}
+              icon="💳"
+              prefix="$"
+              suffix="/day"
             />
             <NumberField
-              label="Truck Mileage Rate ($/mile)"
+              label="Mileage Rate"
               value={truckMileageRate}
               setValue={setTruckMileageRate}
+              icon="🛣️"
+              prefix="$"
+              suffix="/mile"
             />
           </div>
+        </div>
 
-  
-          {/* Return flights */}
-          <div className="rounded border p-3 space-y-3">
-            <h3 className="font-semibold text-black">Return Flights</h3>
-  
-            {nearestAirportName && (
-              <div className="space-y-2">
-                <label className="block text-black">
-                  <span className="font-medium">Nearest Airport:</span>
-                  <input
-                    readOnly
-                    value={`${nearestAirportName} (${nearestAirportCode})`}
-                    className="mt-1 w-full rounded border border-gray-300 bg-gray-50 p-2 text-black"
+        {/* Return Flights (One-Way) or Hotel (Both) */}
+        {moveType === 'one-way' ? (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="bg-gradient-to-r from-sky-600 to-sky-800 p-4">
+              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                <span>✈️ Return Flights</span>
+              </h3>
+            </div>
+            <div className="p-6 space-y-4">
+              {nearestAirportName && (
+                <div className="bg-blue-50 p-4 rounded-lg space-y-2">
+                  <p className="text-sm font-medium text-gray-700">Nearest Airport</p>
+                  <p className="font-semibold text-gray-900">
+                    {nearestAirportName} ({nearestAirportCode})
+                  </p>
+                  <button
+                    onClick={handleCheckFlightPrice}
+                    className="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors font-medium"
+                  >
+                    Get Flight Price →
+                  </button>
+                </div>
+              )}
+              <NumberField
+                label="Returning Staff"
+                value={numReturnFlights}
+                setValue={setNumReturnFlights}
+                icon="👥"
+                suffix="people"
+              />
+              <NumberField
+                label="Ticket Rate"
+                value={flightTicketRate}
+                setValue={setFlightTicketRate}
+                icon="💵"
+                prefix="$"
+                suffix="/ticket"
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="bg-gradient-to-r from-indigo-600 to-indigo-900 p-4">
+              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                <span>🏨 Accommodation</span>
+              </h3>
+            </div>
+            <div className="p-6 space-y-4">
+              <label className="flex items-center justify-between group cursor-pointer">
+                <span className="text-gray-700 font-medium">Need Hotel?</span>
+                <ToggleSwitch
+                  checked={needsHotel}
+                  onChange={setNeedsHotel}
+                />
+              </label>
+              {needsHotel && (
+                <div className="space-y-4 mt-4">
+                  <NumberField
+                    label="Hotel Rate"
+                    value={hotelRate}
+                    setValue={setHotelRate}
+                    icon="🏨"
+                    prefix="$"
+                    suffix="/night"
                   />
-                </label>
-                <button
-                  onClick={handleCheckFlightPrice}
-                  className="w-full rounded bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600"
-                >
-                  Get Flight Price
-                </button>
+                  <NumberField
+                    label="Per Diem"
+                    value={perDiemRate}
+                    setValue={setPerDiemRate}
+                    icon="🍽️"
+                    prefix="$"
+                    suffix="/day"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Additional Services Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Packing Supplies */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="bg-gradient-to-r from-pink-700 to-pink-900 p-4">
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+              <span>📦 Packing Supplies</span>
+            </h3>
+          </div>
+          <div className="p-6">
+            <label className="flex items-center justify-between group cursor-pointer mb-4">
+              <span className="text-gray-700 font-medium">Need Packing Supplies?</span>
+              <ToggleSwitch
+                checked={needsPacking}
+                onChange={setNeedsPacking}
+              />
+            </label>
+            
+            {needsPacking && (
+              <div className="max-h-64 overflow-y-auto space-y-2 pr-2">
+                {packingItems.map((item, idx) => (
+                  <div key={item.name} className="bg-gray-50 p-3 rounded-lg">
+                    <p className="font-medium text-gray-800 text-sm mb-2">{item.name}</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-gray-600">Price</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          onWheel={(e) => e.currentTarget.blur()}
+                          className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1 text-sm text-black focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
+                          value={item.price}
+                          onChange={(e) =>
+                            updatePackingItem(idx, 'price', parseFloat(e.target.value) || 0)
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600">Quantity</label>
+                        <input
+                          type="number"
+                          className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1 text-sm text-black focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
+                          value={item.quantity}
+                          onChange={(e) =>
+                            updatePackingItem(idx, 'quantity', parseInt(e.target.value) || 0)
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
-  
-            <NumberField
-              label="How many guys flying back?"
-              value={numReturnFlights}
-              setValue={setNumReturnFlights}
-            />
-            <NumberField
-              label="Flight Ticket Rate"
-              value={flightTicketRate}
-              setValue={setFlightTicketRate}
-            />
           </div>
         </div>
-      )}
-  
-      {/* Packing supplies | Hotel & Per Diem */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {/* Packing */}
-        <div className="rounded border p-3 space-y-2">
-          <h3 className="font-semibold text-black">Packing Supplies</h3>
-          <div className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              checked={needsPacking}
-              onChange={(e) => setNeedsPacking(e.target.checked)}
-            />
-            <span className="text-black">Needs packing supplies?</span>
-          </div>
-  
-          {needsPacking && (
-            <div className="mt-2 space-y-3">
-              {packingItems.map((item, idx) => (
-                <div
-                  key={item.name}
-                  className="grid grid-cols-3 items-center gap-2"
-                >
-                  <div className="text-black">{item.name}</div>
-                  <div>
-                    <label className="block text-xs text-gray-600">Price</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      className="mt-1 w-full rounded border border-gray-300 p-1 text-black"
-                      value={item.price}
-                      onChange={(e) =>
-                        updatePackingItem(idx, 'price', parseFloat(e.target.value) || 0)
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-600">Qty</label>
-                    <input
-                      type="number"
-                      className="mt-1 w-full rounded border border-gray-300 p-1 text-black"
-                      value={item.quantity}
-                      onChange={(e) =>
-                        updatePackingItem(idx, 'quantity', parseInt(e.target.value) || 0)
-                      }
-                    />
-                  </div>
-                </div>
-              ))}
+
+        {/* Hotel & Per Diem (if one-way) */}
+        {moveType === 'one-way' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 p-4">
+              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                <span>🏨 Accommodation</span>
+              </h3>
             </div>
-          )}
-        </div>
-  
-        {/* Hotel & Per-Diem */}
-        <div className="rounded border p-3 space-y-2">
-          <h3 className="font-semibold text-black">Hotel & Per Diem</h3>
-          <div className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              checked={needsHotel}
-              onChange={(e) => setNeedsHotel(e.target.checked)}
-            />
-            <span className="text-black">Need Hotel?</span>
+            <div className="p-6 space-y-4">
+              <label className="flex items-center justify-between group cursor-pointer">
+                <span className="text-gray-700 font-medium">Need Hotel?</span>
+                <ToggleSwitch
+                  checked={needsHotel}
+                  onChange={setNeedsHotel}
+                />
+              </label>
+              {needsHotel && (
+                <div className="space-y-4 mt-4">
+                  <NumberField
+                    label="Hotel Rate"
+                    value={hotelRate}
+                    setValue={setHotelRate}
+                    icon="🏨"
+                    prefix="$"
+                    suffix="/night"
+                  />
+                  <NumberField
+                    label="Per Diem"
+                    value={perDiemRate}
+                    setValue={setPerDiemRate}
+                    icon="🍽️"
+                    prefix="$"
+                    suffix="/day"
+                  />
+                </div>
+              )}
+            </div>
           </div>
-          {needsHotel && (
-            <>
-              <NumberField
-                label="Hotel Rate ($/night)"
-                value={hotelRate}
-                setValue={setHotelRate}
-              />
-              <NumberField
-                label="Per Diem Rate ($/night/driver)"
-                value={perDiemRate}
-                setValue={setPerDiemRate}
-              />
-            </>
-          )}
+        )}
+      </div>
+
+      {/* Cost Summary */}
+      <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl shadow-xl overflow-hidden">
+        <div className="p-6 text-white">
+          <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
+            <span className="bg-white/20 rounded-lg p-2">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+            </span>
+            Cost Breakdown
+          </h3>
+          
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+            <CostItem label="Driver Pay" value={costs.driverPay} icon="👷" />
+            <CostItem label="Fuel" value={costs.fuelCost} icon="⛽" />
+            <CostItem label="Labor" value={costs.laborCost} icon="💪" />
+            {needsHotel && <CostItem label="Hotel" value={costs.hotelCost} icon="🏨" />}
+            {needsHotel && <CostItem label="Per Diem" value={costs.perDiemCost} icon="🍽️" />}
+            {needsPacking && <CostItem label="Packing" value={costs.packingCost} icon="📦" />}
+            <CostItem label="Truck" value={costs.truckCost} icon="🚚" />
+            {moveType === 'one-way' && <CostItem label="Flights" value={costs.flightCost} icon="✈️" />}
+            <CostItem label="Tolls" value={costs.tollCost} icon="🎫" />
+          </div>
+          
+          <div className="border-t border-white/20 pt-6">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-2xl font-bold">Total Quote</span>
+              <span className="text-4xl font-bold text-green-400">
+                ${costs.total.toFixed(2)}
+              </span>
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm opacity-80">
+              <div>
+                <span className="block text-gray-400">GPS Hours</span>
+                <span className="font-semibold">{gpsDriveHours.toFixed(1)}h</span>
+              </div>
+              <div>
+                <span className="block text-gray-400">Adjusted Hours</span>
+                <span className="font-semibold">{costs.adjustedDriveHours.toFixed(1)}h</span>
+              </div>
+              <div>
+                <span className="block text-gray-400">Driving Days</span>
+                <span className="font-semibold">{costs.drivingDays}</span>
+              </div>
+              <div>
+                <span className="block text-gray-400">Total Job Days</span>
+                <span className="font-semibold">{totalJobDays}</span>
+              </div>
+            </div>
+            
+            <button
+              disabled={!selectedLead}
+              onClick={async () => {
+                if (!selectedLead) return;
+                try {
+                  const res = await fetch('/services', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ lead: selectedLead, total: costs.total }),
+                  });
+                  const json = await res.json();
+                  if (!json.ok) throw new Error(json.message);
+                  alert('✅ Total sent to SmartMoving!');
+                } catch (err) {
+                  console.error(err);
+                  alert('❌ Failed to send total');
+                }
+              }}
+              className={`w-full mt-6 py-3 px-6 rounded-lg font-semibold transition-all duration-200 ${
+                selectedLead
+                  ? 'bg-green-500 hover:bg-green-600 text-white transform hover:scale-105'
+                  : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              {selectedLead ? '📤 Send to SmartMoving' : '⚠️ Import a Lead First'}
+            </button>
+          </div>
         </div>
       </div>
-  
-      {/* Cost Breakdown */}
-      {(() => {
-        const costs = calculateCost();
-        const totalJobDays = costs.drivingDays + numLaborDays;
-        return (
-          <div className="rounded border bg-gray-50 p-3 space-y-4">
-            <h3 className="text-lg font-bold text-black">Cost Breakdown</h3>
-  
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <LineItem label="Driver Pay" value={costs.driverPay} />
-              <LineItem label="Fuel" value={costs.fuelCost} />
-              <LineItem label="Loading + Unloading Labor" value={costs.laborCost} />
-              {needsHotel && <LineItem label="Hotel" value={costs.hotelCost} />}
-              {needsHotel && (
-                <LineItem label="Per Diem" value={costs.perDiemCost} />
-              )}
-              {needsPacking && (
-                <LineItem label="Packing" value={costs.packingCost} />
-              )}
-              <LineItem label="Truck Cost" value={costs.truckCost} />
-              {moveType === 'one-way' && (
-                <LineItem label="Flight Cost" value={costs.flightCost} />
-              )}
-              <LineItem label="Toll Cost" value={costs.tollCost} />
-            </div>
-  
-            <hr />
-  
-            <div className="flex justify-between text-xl font-bold text-black">
-              <span>Total</span>
-              <span>${costs.total.toFixed(2)}</span>
-            </div>
-  
-            {/* Send to SmartMoving */}
-            <div>
-              <button
-                disabled={!selectedLead}
-                onClick={async () => {
-                  if (!selectedLead) return;
-                  try {
-                    const res = await fetch('/services', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ lead: selectedLead, total: costs.total }),
-                    });
-                    const json = await res.json();
-                    if (!json.ok) throw new Error(json.message);
-                    alert('✅ Total sent to SmartMoving!');
-                  } catch (err) {
-                    console.error(err);
-                    alert('❌ Failed to send total');
-                  }
-                }}
-                className="rounded bg-green-500 px-4 py-2 text-white hover:bg-green-600 disabled:opacity-50"
-              >
-                Send to SmartMoving
-              </button>
-            </div>
-  
-            {/* Extra info */}
-            <div className="text-sm text-black">
-              <p>
-                GPS Drive Hours: {gpsDriveHours.toFixed(1)}, Adjusted:{' '}
-                {costs.adjustedDriveHours.toFixed(1)}
-              </p>
-              <p>Driving Days (9 hr rule): {costs.drivingDays}</p>
-              <p>Loading Days: {numLaborDays}</p>
-              <p>Total Job Days: {totalJobDays}</p>
-            </div>
-          </div>
-        );
-      })()}
     </div>
-  );  
+  );
 }
 
-/** Basic text input field */
+/** Enhanced TextField with icon support */
 function TextField({
   label,
   value,
-  setValue
+  setValue,
+  icon = ''
 }: {
   label: string;
   value: string;
   setValue: (val: string) => void;
+  icon?: string;
 }) {
   return (
-    <label className="block text-black mb-2">
-      <span className="font-medium">{label}</span>
+    <div className="space-y-1">
+      <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+        {icon && <span>{icon}</span>}
+        {label}
+      </label>
       <input
         type="text"
-        className="border border-gray-300 rounded w-full mt-1 p-2 text-black"
+        className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200"
         value={value}
         onChange={(e) => setValue(e.target.value)}
       />
-    </label>
+    </div>
   );
 }
 
+/** Enhanced NumberField */
 function NumberField({
   label,
   value,
-  setValue
+  setValue,
+  icon = '',
+  prefix = '',
+  suffix = '',
+  compact = false
 }: {
   label: string;
   value: number;
   setValue: (val: number) => void;
+  icon?: string;
+  prefix?: string;
+  suffix?: string;
+  compact?: boolean;
 }) {
   const [localValue, setLocalValue] = useState(value === 0 ? '' : String(value));
 
@@ -1089,24 +1208,103 @@ function NumberField({
   }
 
   return (
-    <label className="block text-black mb-2">
-      <span className="font-medium">{label}</span>
-      <input
-        type="number"
-        className="border border-gray-300 rounded w-full mt-1 p-2 text-black"
-        value={localValue}
-        onChange={handleChange}
-      />
-    </label>
+    <div className={`space-y-1 ${compact ? '' : ''}`}>
+      <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+        {icon && <span>{icon}</span>}
+        {label}
+      </label>
+      <div className="relative">
+        {prefix && (
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
+            {prefix}
+          </span>
+        )}
+        <input
+          type="number"
+          onWheel={(e) => e.currentTarget.blur()}
+          className={`w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 ${
+            prefix ? 'pl-8' : ''
+          } ${suffix ? 'pr-12' : ''}`}
+          value={localValue}
+          onChange={handleChange}
+        />
+        {suffix && (
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
+            {suffix}
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
 
-/** A row for cost breakdown items */
-function LineItem({ label, value }: { label: string; value: number }) {
+/** Metric Card Component */
+function MetricCard({
+  label,
+  value,
+  setValue,
+  icon,
+  unit,
+  prefix = ''
+}: {
+  label: string;
+  value: number;
+  setValue: (val: number) => void;
+  icon: string;
+  unit: string;
+  prefix?: string;
+}) {
   return (
-    <div className="flex justify-between bg-white p-2 rounded text-black">
-      <span>{label}</span>
-      <span>${value.toFixed(2)}</span>
+    <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-2xl">{icon}</span>
+        <span className="text-xs text-gray-500 uppercase">{unit}</span>
+      </div>
+      <p className="text-sm text-gray-600 mb-1">{label}</p>
+      <NumberField
+        label=""
+        value={value}
+        setValue={setValue}
+        prefix={prefix}
+        compact
+      />
     </div>
+  );
+}
+
+/** Cost Item Component */
+function CostItem({ label, value, icon }: { label: string; value: number; icon: string }) {
+  return (
+    <div className="bg-white/10 rounded-lg p-3">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-lg">{icon}</span>
+        <span className="text-sm text-gray-300">{label}</span>
+      </div>
+      <p className="text-xl font-semibold">${value.toFixed(2)}</p>
+    </div>
+  );
+}
+
+/** Toggle Switch Component */
+function ToggleSwitch({
+  checked,
+  onChange
+}: {
+  checked: boolean;
+  onChange: (val: boolean) => void;
+}) {
+  return (
+    <button
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+        checked ? 'bg-gradient-to-r from-blue-500 to-blue-600' : 'bg-gray-300'
+      }`}
+    >
+      <span
+        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+          checked ? 'translate-x-6' : 'translate-x-1'
+        }`}
+      />
+    </button>
   );
 }
