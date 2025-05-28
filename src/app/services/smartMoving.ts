@@ -1,9 +1,12 @@
 import axios from 'axios';
 
-/* 1. Config */
-const SUBSCRIPTION_KEY  = '1d037767eef5447cb2a7557463c55d41';
-const BASE_URL          = 'https://api-public.smartmoving.com/v1/api';
+/* 1. Config */
+const SUBSCRIPTION_KEY = process.env.SMARTMOVING_API_KEY!;
+const BASE_URL = process.env.SMARTMOVING_API_URL!;
 const DEFAULT_TARIFF_ID = 'd5e1d04b-fbc6-4af4-8c7a-af390151fdbf';
+
+if (!SUBSCRIPTION_KEY) throw new Error('SMARTMOVING_API_KEY missing');
+if (!BASE_URL) throw new Error('SMARTMOVING_API_URL missing');
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY!;
 if (!GOOGLE_MAPS_API_KEY) throw new Error('GOOGLE_MAPS_API_KEY missing');
