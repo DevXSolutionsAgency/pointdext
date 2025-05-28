@@ -320,7 +320,7 @@ function PackingItemRow({
     if (item.quantity !== 0) {
       setLocalQuantity(String(item.quantity));
     }
-  }, [item.quantity]); // Remove localQuantity from dependencies
+  }, [item.quantity]); 
 
   return (
     <div className="bg-gray-50 p-3 rounded-lg">
