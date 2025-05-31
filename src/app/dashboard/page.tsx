@@ -342,8 +342,18 @@ function DashboardPage() {
     }
   }
 
+  const warnNoSalesPerson = (lead: SmartMovingLead) => {
+    if (!lead.salesPersonId) {
+      toast.error(
+        '⚠️ Sales Person Missing. ' +
+        'Please add Sales Person in SmartMoving.', {position: 'top-center', duration: 8000,});
+    }
+  };
+  
   /* Import a lead into the calculator */
   function handleImportLead(lead: SmartMovingLead) {
+    // warn immediately if the lead is missing its salesperson
+    warnNoSalesPerson(lead);
     const pickupAddr =
       lead.originAddressFull?.trim() ||
       `${lead.originStreet || ''} ${lead.originCity || ''}`.trim();
@@ -542,6 +552,10 @@ function DashboardPage() {
                 warehouseReturn={warehouseReturn} setWarehouseReturn={setWarehouseReturn}
                 pickup={pickup} setPickup={setPickup}
                 delivery={delivery} setDelivery={setDelivery}
+                stops={stops}
+                onAddStop={handleAddStop}
+                onRemoveStop={handleRemoveStop}
+                onSetStop={setStop}
                 totalMiles={totalMiles} setTotalMiles={setTotalMiles}
                 gpsDriveHours={gpsDriveHours} setGpsDriveHours={setGpsDriveHours}
                 numTolls={numTolls} setNumTolls={setNumTolls}
@@ -849,6 +863,11 @@ function SinglePageCalculator(
     delivery: string;
     setDelivery: (v: string) => void;
 
+    stops: string[];
+    onAddStop: () => void;
+    onRemoveStop: (idx: number) => void;
+    onSetStop: (idx: number, v: string) => void;
+
     totalMiles: number;
     setTotalMiles: (v: number) => void;
     gpsDriveHours: number;
@@ -997,12 +1016,6 @@ function SinglePageCalculator(
     setFlightTicketRate,
   } = props;
 
-  // all the original local state for stops etc.
-  const [stops, setStops] = useState<string[]>([]);
-  const handleAddStop    = () => setStops(s => [...s, '']);
-  const handleRemoveStop = (idx: number) => setStops(s => s.filter((_, i) => i !== idx));
-  const setStop          = (idx: number, val: string) => setStops(s => s.map((v, i) => i === idx ? val : v));
-
   return (
     <div className="space-y-6 p-2">
       {/* header */}
@@ -1080,16 +1093,16 @@ function SinglePageCalculator(
             />
 
             {/* Dynamic stops */}
-            {stops.map((stop, idx) => (
+            {props.stops.map((stop, idx) => (
               <div key={idx} className="relative">
                 <TextField
                   label={`🚏 Stop ${idx + 1}`}
                   value={stop}
-                  setValue={(val) => setStop(idx, val)}
+                  setValue={(val) => props.onSetStop(idx, val)}
                   icon="📍"
                 />
                 <button
-                  onClick={() => handleRemoveStop(idx)}
+                  onClick={() => props.onRemoveStop(idx)}
                   className="absolute right-2 top-8 px-2 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors"
                   title="Remove stop"
                 >
@@ -1110,7 +1123,7 @@ function SinglePageCalculator(
 
           {/* Add Stop button */}
           <button
-            onClick={handleAddStop}
+            onClick={props.onAddStop}
             className="mt-2 text-blue-600 hover:text-blue-700 font-medium text-sm flex items-center gap-2"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
