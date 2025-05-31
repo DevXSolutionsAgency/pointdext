@@ -47,6 +47,7 @@ interface LeadViewModel {
   referralSource: string;
   referralSourceName?: string;
   moveSizeId?: string;
+  serviceDate?: number;
   salesPersonId?: string;
   type?: number;
   branchId: string;
@@ -80,6 +81,7 @@ export interface SmartMovingLead {
   destinationStreet?: string; destinationCity?: string; destinationState?: string; destinationZip?: string;
 
   moveSizeId?: string;
+  serviceDate?: number;
   salesPersonId?: string;
   type?: number;
 
@@ -150,6 +152,7 @@ export const smartMovingService = {
       destinationStreet : raw.destinationStreet, destinationCity : raw.destinationCity,
       destinationState  : raw.destinationState,  destinationZip  : raw.destinationZip,
       moveSizeId       : raw.moveSizeId,
+      serviceDate      : raw.serviceDate,
       salesPersonId    : raw.salesPersonId,
       type             : raw.type,
       customerId       : raw.customerId,
@@ -165,6 +168,7 @@ export const smartMovingService = {
         customerId    : data.customerId,
         moveSizeId    : data.moveSizeId,
         salesPersonId : data.salesPersonId,
+        serviceDate   : data.serviceDate,
         type          : data.type,
         emailAddress  : data.emailAddress,
         phoneNumber   : data.phoneNumber,
