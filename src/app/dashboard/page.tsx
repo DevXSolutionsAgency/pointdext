@@ -68,6 +68,31 @@ const defaultPackingItems = [
   { name: 'French Cleat',         price: 20,    quantity: 0 },
 ];
 
+const AIRLINE_NAMES: Record<string, string> = {
+  AA: 'American Airlines',
+  DL: 'Delta Air Lines',
+  UA: 'United Airlines',
+  WN: 'Southwest Airlines',
+  AS: 'Alaska Airlines',
+  B6: 'JetBlue Airways',
+  F9: 'Frontier Airlines',
+  NK: 'Spirit Airlines',
+  G4: 'Allegiant Air',
+  HA: 'Hawaiian Airlines',
+  SY: 'Sun Country Airlines',
+  AAY: 'Allegiant Air', 
+  VX: 'Virgin America', 
+  YX: 'Republic Airways',
+  OO: 'SkyWest Airlines',
+  EV: 'ExpressJet Airlines', 
+  MQ: 'Envoy Air',
+  OH: 'PSA Airlines',
+  QX: 'Horizon Air',
+  ZW: 'Air Wisconsin',
+  G7: 'GoJet Airlines',
+};
+
+
 interface CostSummary {
   adjustedDriveHours: number;
   drivingDays:       number;
@@ -130,6 +155,9 @@ function DashboardPage() {
   // packing
   const [needsPacking, setNeedsPacking] = useState(false);
 
+  // move-start date derived from SmartMoving serviceDate (yyyy-mm-dd)
+  const [moveDate, setMoveDate] = useState<string | null>(null);
+
   const [packingItems, setPackingItems] = useState(() => defaultPackingItems);
   function updatePackingItem(
     idx: number,
@@ -150,6 +178,8 @@ function DashboardPage() {
   // return flights
   const [numReturnFlights, setNumReturnFlights] = useState(2);
   const [flightTicketRate, setFlightTicketRate] = useState(0);
+  const [flightAirline,     setFlightAirline]     = useState('');
+  const [flightDepartTime,  setFlightDepartTime]  = useState('');
 
   // stops for multi-leg moves
   const [stops, setStops] = useState<string[]>([]);
@@ -245,11 +275,14 @@ function DashboardPage() {
   /* Flight price lookup */
   async function handleCheckFlightPrice() {
     if (!nearestAirportCode) return toast.error('No nearest airport found.');
+    if (!moveDate)           return toast.error('Lead has no move date.');
+
+    const start = new Date(moveDate);                 
+    const last  = new Date(start);
+    last.setDate(start.getDate() + totalJobDays);     
+    const departureDate = last.toISOString().split('T')[0];
 
     const originCode = nearestAirportCode;
-    const departureDate = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000) // 5 days out
-      .toISOString()
-      .split('T')[0];
 
     try {
       setCheckingFlight(true);
@@ -271,8 +304,10 @@ function DashboardPage() {
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Amadeus error');
 
-      const flightPrice = data.flightPrice;
-      setFlightTicketRate(flightPrice);
+      const { flightPrice, airline, departTime } = data;   
+      setFlightTicketRate(flightPrice);                    
+      setFlightAirline(airline || '');                     
+      setFlightDepartTime(departTime || '');
 
       toast.success(`Flight ${originCode} → PHX: $${flightPrice}`);
     } catch (err: any) {
@@ -318,6 +353,19 @@ function DashboardPage() {
 
     setPickup(pickupAddr);
     setDelivery(deliveryAddr);
+
+    /* ▶ convert serviceDate (20250606 ➜ "2025-06-06"); save null if missing */
+    if (lead.serviceDate) {
+      const s = lead.serviceDate.toString();       
+      if (s.length === 8) {
+        setMoveDate(`${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6)}`); 
+      } else {
+        setMoveDate(null);
+      }
+      } else {
+        setMoveDate(null);
+    }
+
     setSelectedLead(lead);
     setView('calculator');
   }
@@ -516,6 +564,8 @@ function DashboardPage() {
                 truckMileageRate={truckMileageRate} setTruckMileageRate={setTruckMileageRate}
                 numReturnFlights={numReturnFlights} setNumReturnFlights={setNumReturnFlights}
                 flightTicketRate={flightTicketRate} setFlightTicketRate={setFlightTicketRate}
+                flightAirline={flightAirline}
+                flightDepartTime={flightDepartTime}
                 selectedLead={selectedLead}
                 packingItems={packingItems}
                 updatePackingItem={updatePackingItem}
@@ -851,6 +901,8 @@ function SinglePageCalculator(
     setNumReturnFlights: (v: number) => void;
     flightTicketRate: number;
     setFlightTicketRate: (v: number) => void;
+    flightAirline: string;
+    flightDepartTime: string;
 
     selectedLead: SmartMovingLead | null;
 
@@ -901,6 +953,8 @@ function SinglePageCalculator(
     truckMileageRate,
     numReturnFlights,
     flightTicketRate,
+    flightAirline,
+    flightDepartTime,
     onCalculateRoute,
     calculatingRoute,
     onCheckFlight,
@@ -1268,6 +1322,18 @@ function SinglePageCalculator(
                 prefix="$"
                 suffix="/ticket"
               />
+
+              {flightAirline && (
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium">Airline:</span>{' '}
+                  {AIRLINE_NAMES[flightAirline] ?? flightAirline}
+                  {flightDepartTime && (
+                    <span className="ml-2"> Departs: 
+                      ({new Date(flightDepartTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                    </span>
+                  )}
+                </p>
+              )}
             </div>
           </div>
         ) : (
