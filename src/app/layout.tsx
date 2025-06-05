@@ -4,8 +4,11 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Quote Calculator',
+  title: 'Poindexter Calculator',
   description: 'A quote calculator application',
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export default function RootLayout({
@@ -16,6 +19,10 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en">
+        <head>
+          <link rel="icon" href="/favicon.png" type="image/png" />
+          <title>Poindexter Calculator</title>
+        </head>
         <body>{children}</body>
       </html>
     </ClerkProvider>
