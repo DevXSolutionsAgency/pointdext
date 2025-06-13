@@ -174,6 +174,7 @@ function DashboardPage() {
   const [oneWayTruckCost, setOneWayTruckCost] = useState(0);
   const [truckDailyRate, setTruckDailyRate] = useState(300);
   const [truckMileageRate, setTruckMileageRate] = useState(0.3);
+  const [truckDaysNeeded, setTruckDaysNeeded] = useState(1);
 
   // return flights
   const [numReturnFlights, setNumReturnFlights] = useState(2);
@@ -251,6 +252,10 @@ function DashboardPage() {
       setTotalMiles(Math.ceil(distance));
       setGpsDriveHours(Math.ceil(duration / 60));
       setNumTolls(tolls);
+
+      // Auto-calculate truck days needed based on driving hours (9 hours = 1 full day) 
+      const calculatedTruckDays = Math.ceil(Math.ceil(duration / 60) / 9);              
+      setTruckDaysNeeded(calculatedTruckDays);  
 
       if (moveType === 'one-way' && apName && apCode) {
         setNearestAirportName(apName);
@@ -404,7 +409,7 @@ function DashboardPage() {
       ? packingItems.reduce((sum, it) => sum + it.price * it.quantity, 0)
       : 0;
 
-    const truckDays = numLaborDays + drivingDays;
+    const truckDays = truckDaysNeeded;
     const truckCost =
       truckDays * truckDailyRate + totalMiles * truckMileageRate;
 
@@ -442,7 +447,7 @@ function DashboardPage() {
   }
 
   const costs = calculateCost();
-  const totalJobDays = costs.drivingDays + numLaborDays;
+  const totalJobDays = truckDaysNeeded;
 
   /* Render */
   return (
@@ -576,6 +581,7 @@ function DashboardPage() {
                 oneWayTruckCost={oneWayTruckCost} setOneWayTruckCost={setOneWayTruckCost}
                 truckDailyRate={truckDailyRate} setTruckDailyRate={setTruckDailyRate}
                 truckMileageRate={truckMileageRate} setTruckMileageRate={setTruckMileageRate}
+                truckDaysNeeded={truckDaysNeeded} setTruckDaysNeeded={setTruckDaysNeeded}
                 numReturnFlights={numReturnFlights} setNumReturnFlights={setNumReturnFlights}
                 flightTicketRate={flightTicketRate} setFlightTicketRate={setFlightTicketRate}
                 flightAirline={flightAirline}
@@ -915,6 +921,8 @@ function SinglePageCalculator(
     setTruckDailyRate: (v: number) => void;
     truckMileageRate: number;
     setTruckMileageRate: (v: number) => void;
+    truckDaysNeeded: number;              
+    setTruckDaysNeeded: (v: number) => void;
 
     numReturnFlights: number;
     setNumReturnFlights: (v: number) => void;
@@ -970,6 +978,7 @@ function SinglePageCalculator(
     needsPacking,
     truckDailyRate,
     truckMileageRate,
+    truckDaysNeeded,
     numReturnFlights,
     flightTicketRate,
     flightAirline,
@@ -1012,6 +1021,7 @@ function SinglePageCalculator(
     setOneWayTruckCost,
     setTruckDailyRate,
     setTruckMileageRate,
+    setTruckDaysNeeded,
     setNumReturnFlights,
     setFlightTicketRate,
   } = props;
@@ -1273,8 +1283,15 @@ function SinglePageCalculator(
           </div>
           <div className="p-6 space-y-4">
             <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
-              📊 Truck Days = Loading Days + Driving Days
+              📊 Days needed auto-calculates from drive time (9 hrs = 1 day)
             </p>
+            <NumberField                   
+              label="Days Needed"
+              value={truckDaysNeeded}
+              setValue={setTruckDaysNeeded}
+              icon="📅"
+              suffix="days"
+            />
             <NumberField
               label="Daily Rate"
               value={truckDailyRate}
