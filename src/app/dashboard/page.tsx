@@ -118,6 +118,7 @@ function DashboardPage() {
   const [loadingLeads, setLoadingLeads] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<SmartMovingLead | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   // loading flags for the three async actions
   const [calculatingRoute, setCalculatingRoute]   = useState(false);
@@ -449,6 +450,13 @@ function DashboardPage() {
   const costs = calculateCost();
   const totalJobDays = truckDaysNeeded;
 
+  // Filter leads based on search term
+  const filteredLeads = leads.filter(lead => 
+    lead.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (!searchTerm.trim())
+  );
+
+
   /* Render */
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
@@ -479,7 +487,31 @@ function DashboardPage() {
           {/*  leads panel  */}
           {(view === 'split' || view === 'leads') && (
             <div className="bg-white p-4 rounded-md shadow flex flex-col h-full">
-              <h2 className="text-xl font-bold text-black mb-4">Leads</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-black">Leads</h2>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search by customer name..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 pr-4 py-2 border border-gray-400 rounded-lg text-sm text-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-64"
+                  />
+                  <svg
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                </div>
+              </div>
 
               {loadingLeads ? (
                 <p className="text-black">Loading leads…</p>
@@ -514,7 +546,7 @@ function DashboardPage() {
                       </thead>
 
                       <tbody className="divide-y divide-gray-200 bg-white">
-                        {leads.map((lead) => (
+                        {filteredLeads.map((lead) => (
                           <tr key={lead.id} className="hover:bg-gray-50 transition-colors">
                             <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-900">
                               {lead.customerName ?? 'N/A'}
@@ -531,6 +563,14 @@ function DashboardPage() {
                             </td>
                           </tr>
                         ))}
+
+                        {filteredLeads.length === 0 && leads.length > 0 && (
+                          <tr>
+                            <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
+                              No leads match your search
+                            </td>
+                          </tr>
+                        )}
 
                         {leads.length === 0 && (
                           <tr>
