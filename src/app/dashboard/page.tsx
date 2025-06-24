@@ -139,6 +139,7 @@ function DashboardPage() {
 
   // hotel and per-diem
   const [needsHotel, setNeedsHotel] = useState(false);
+  const [hotelNights, setHotelNights] = useState(0);
   const [hotelRate, setHotelRate] = useState(150);
   const [perDiemRate, setPerDiemRate] = useState(50);
 
@@ -227,6 +228,8 @@ function DashboardPage() {
       const drivingDays = Math.ceil(adjustedHours / 9);
       const newTruckDays = drivingDays + numLaborDays + (needsUnloaders ? numUnloaderDays : 0);
       setTruckDaysNeeded(newTruckDays);
+
+      setHotelNights(Math.max(0, newTruckDays - 1));
     }
   }, [numLaborDays, numUnloaderDays, needsUnloaders, gpsDriveHours]);
 
@@ -277,6 +280,8 @@ function DashboardPage() {
       // Calculate total truck days: driving days + current labor days + current unloader days
       const calculatedTruckDays = calculatedDrivingDays + numLaborDays + (needsUnloaders ? numUnloaderDays : 0);       
       setTruckDaysNeeded(calculatedTruckDays);  
+
+      setHotelNights(Math.max(0, calculatedTruckDays - 1));
 
       if (moveType === 'one-way' && apName && apCode) {
         setNearestAirportName(apName);
@@ -424,7 +429,7 @@ function DashboardPage() {
     let hotelCost = 0;
     let perDiemCost = 0;
     if (needsHotel) {
-      hotelCost = drivingDays * hotelRate;
+      hotelCost = hotelNights * hotelRate;
       perDiemCost = drivingDays * perDiemRate;
     }
 
@@ -634,6 +639,7 @@ function DashboardPage() {
                 unloaderDailyRate={unloaderDailyRate} setUnloaderDailyRate={setUnloaderDailyRate}
                 unloadersRate={unloadersRate} setUnloadersRate={setUnloadersRate}
                 needsHotel={needsHotel} setNeedsHotel={setNeedsHotel}
+                hotelNights={hotelNights} setHotelNights={setHotelNights}
                 hotelRate={hotelRate} setHotelRate={setHotelRate}
                 perDiemRate={perDiemRate} setPerDiemRate={setPerDiemRate}
                 oneWayDriverHourly={oneWayDriverHourly} setOneWayDriverHourly={setOneWayDriverHourly}
@@ -956,6 +962,8 @@ function SinglePageCalculator(
     setNeedsHotel: (v: boolean) => void;
     hotelRate: number;
     setHotelRate: (v: number) => void;
+    hotelNights: number;
+    setHotelNights: (v: number) => void;
     perDiemRate: number;
     setPerDiemRate: (v: number) => void;
 
@@ -1038,6 +1046,7 @@ function SinglePageCalculator(
     gasPrice,
     laborRate,
     needsHotel,
+    hotelNights,
     hotelRate,
     perDiemRate,
     oneWayDriverHourly,
@@ -1082,6 +1091,7 @@ function SinglePageCalculator(
     setGasPrice,
     setLaborRate,
     setNeedsHotel,
+    setHotelNights,
     setHotelRate,
     setPerDiemRate,
     setOneWayDriverHourly,
@@ -1481,6 +1491,13 @@ function SinglePageCalculator(
               {needsHotel && (
                 <div className="space-y-4 mt-4">
                   <NumberField
+                    label="Number of Nights"
+                    value={hotelNights}
+                    setValue={setHotelNights}
+                    icon="🌙"
+                    suffix="nights"
+                  />
+                  <NumberField
                     label="Hotel Rate"
                     value={hotelRate}
                     setValue={setHotelRate}
@@ -1562,6 +1579,13 @@ function SinglePageCalculator(
               </label>
               {needsHotel && (
                 <div className="space-y-4 mt-4">
+                  <NumberField
+                    label="Number of Nights"
+                    value={hotelNights}
+                    setValue={setHotelNights}
+                    icon="🌙"
+                    suffix="nights"
+                  />
                   <NumberField
                     label="Hotel Rate"
                     value={hotelRate}
