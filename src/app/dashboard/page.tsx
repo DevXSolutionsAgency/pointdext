@@ -234,6 +234,8 @@ function DashboardPage() {
 
   // lead data
   const [leads, setLeads] = useState<SmartMovingLead[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [leadsPerPage, setLeadsPerPage] = useState(25); 
   const [loadingLeads, setLoadingLeads] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<SmartMovingLead | null>(null);
@@ -678,6 +680,11 @@ function DashboardPage() {
     (!searchTerm.trim())
   );
 
+  const totalPages = Math.ceil(filteredLeads.length / leadsPerPage);
+  const paginatedLeads = filteredLeads.slice(
+    (currentPage - 1) * leadsPerPage,
+    currentPage * leadsPerPage
+  );
 
   /* Render */
   return (
@@ -714,9 +721,12 @@ function DashboardPage() {
       {/* main content */}
       <main className="flex-1 overflow-auto p-4">
         <div className={view === 'split' ? 'grid grid-cols-1 lg:grid-cols-2 gap-6 h-full' : 'h-full'}>
-          {/*  leads panel  */}
+          
+          {/* ── Leads panel ─────────────────────────────────────────────── */}
           {(view === 'split' || view === 'leads') && (
             <div className="bg-white p-4 rounded-md shadow flex flex-col h-full">
+              
+              {/* header: title + search only */}
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-bold text-black">Leads</h2>
                 <div className="relative">
@@ -724,7 +734,7 @@ function DashboardPage() {
                     type="text"
                     placeholder="Search by customer name..."
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onChange={e => setSearchTerm(e.target.value)}
                     className="pl-10 pr-4 py-2 border border-gray-400 rounded-lg text-sm text-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-64"
                   />
                   <svg
@@ -733,12 +743,8 @@ function DashboardPage() {
                     stroke="currentColor"
                     viewBox="0 0 24 24"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                    />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
                 </div>
               </div>
@@ -750,6 +756,8 @@ function DashboardPage() {
               ) : (
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <div className="shadow ring-1 ring-gray-200 md:rounded-lg">
+                    
+                    {/* table */}
                     <table className="min-w-full table-fixed divide-y divide-gray-200 text-sm">
                       <colgroup>
                         <col className="w-40" />
@@ -757,30 +765,18 @@ function DashboardPage() {
                         <col className="w-60" />
                         <col className="w-28" />
                       </colgroup>
-
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                            Name
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                            Origin
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                            Destination
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                            Actions
-                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Name</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Origin</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Destination</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
                         </tr>
                       </thead>
-
                       <tbody className="divide-y divide-gray-200 bg-white">
-                        {filteredLeads.map((lead) => (
+                        {paginatedLeads.map(lead => (
                           <tr key={lead.id} className="hover:bg-gray-50 transition-colors">
-                            <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-900">
-                              {lead.customerName ?? 'N/A'}
-                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-900">{lead.customerName ?? 'N/A'}</td>
                             <td className="px-4 py-3 text-gray-700">{lead.originAddressFull ?? 'N/A'}</td>
                             <td className="px-4 py-3 text-gray-700">{lead.destinationAddressFull ?? 'N/A'}</td>
                             <td className="px-4 py-3">
@@ -794,10 +790,10 @@ function DashboardPage() {
                           </tr>
                         ))}
 
-                        {filteredLeads.length === 0 && leads.length > 0 && (
+                        {filteredLeads.length > 0 && paginatedLeads.length === 0 && (
                           <tr>
                             <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
-                              No leads match your search
+                              No leads on this page
                             </td>
                           </tr>
                         )}
@@ -811,6 +807,46 @@ function DashboardPage() {
                         )}
                       </tbody>
                     </table>
+
+                    {/* pagination + page-size selector */}
+                    <div className="flex items-center justify-between py-4">
+                      {/* Prev / Next */}
+                      <div className="flex items-center space-x-4">
+                        <button
+                          onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                          disabled={currentPage === 1}
+                          className="px-3 py-1 bg-gray-200 text-black rounded disabled:opacity-50"
+                        >
+                          Prev
+                        </button>
+                        <span className="text-sm text-black">
+                          Page {currentPage} of {totalPages}
+                        </span>
+                        <button
+                          onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                          disabled={currentPage === totalPages}
+                          className="px-3 py-1 bg-gray-200 text-black rounded disabled:opacity-50"
+                        >
+                          Next
+                        </button>
+                      </div>
+                      {/* Leads per page */}
+                      <label className="flex items-center space-x-2 text-sm text-black">
+                        <span>Leads per page:</span>
+                        <select
+                          value={leadsPerPage}
+                          onChange={e => {
+                            setLeadsPerPage(+e.target.value);
+                            setCurrentPage(1);
+                          }}
+                          className="border rounded px-2 py-1 text-black"
+                        >
+                          {[10, 25, 50, 100].map(n => (
+                            <option key={n} value={n}>{n}</option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
                   </div>
                 </div>
               )}
