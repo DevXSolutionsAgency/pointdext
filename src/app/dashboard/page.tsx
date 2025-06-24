@@ -151,6 +151,9 @@ function DashboardPage() {
   const [numWorkers, setNumWorkers] = useState(2);
   const [numLaborDays, setNumLaborDays] = useState(1);
   const [needsUnloaders, setNeedsUnloaders] = useState(false);
+  const [numUnloaders, setNumUnloaders] = useState(2);
+  const [numUnloaderDays, setNumUnloaderDays] = useState(1);
+  const [unloaderDailyRate, setUnloaderDailyRate] = useState(300);
   const [unloadersRate, setUnloadersRate]   = useState(0);
 
   // packing
@@ -217,6 +220,16 @@ function DashboardPage() {
     })();
   }, []);
 
+  useEffect(() => {
+    if (gpsDriveHours > 0) {  // Only update if we have calculated a route
+      const extraHours = Math.floor(gpsDriveHours / 6) * 2;
+      const adjustedHours = gpsDriveHours + extraHours;
+      const drivingDays = Math.ceil(adjustedHours / 9);
+      const newTruckDays = drivingDays + numLaborDays + (needsUnloaders ? numUnloaderDays : 0);
+      setTruckDaysNeeded(newTruckDays);
+    }
+  }, [numLaborDays, numUnloaderDays, needsUnloaders, gpsDriveHours]);
+
   /* Route calculation */
   async function handleDistanceCalc() {
     if (!moveType || !warehouseStart || !pickup || !delivery) {
@@ -260,7 +273,9 @@ function DashboardPage() {
       const extraHours = Math.floor(gpsHours / 6) * 2;
       const adjustedHours = gpsHours + extraHours;
 
-      const calculatedTruckDays = Math.ceil(adjustedHours / 9);                
+      const calculatedDrivingDays = Math.ceil(adjustedHours / 9);
+      // Calculate total truck days: driving days + current labor days + current unloader days
+      const calculatedTruckDays = calculatedDrivingDays + numLaborDays + (needsUnloaders ? numUnloaderDays : 0);       
       setTruckDaysNeeded(calculatedTruckDays);  
 
       if (moveType === 'one-way' && apName && apCode) {
@@ -401,8 +416,10 @@ function DashboardPage() {
 
     const gallons = totalMiles / 5;
     const fuelCost = gallons * gasPrice;
-    const laborCost =
-      numWorkers * numLaborDays * laborRate + (needsUnloaders ? unloadersRate : 0);
+    // Updated labor cost calculation
+    const loadersCost = numWorkers * numLaborDays * laborRate;
+    const unloadersCost = needsUnloaders ? (numUnloaders * numUnloaderDays * unloaderDailyRate) : 0;
+    const laborCost = loadersCost + unloadersCost;
 
     let hotelCost = 0;
     let perDiemCost = 0;
@@ -453,7 +470,7 @@ function DashboardPage() {
   }
 
   const costs = calculateCost();
-  const totalJobDays = truckDaysNeeded;
+  const totalJobDays = costs.drivingDays + numLaborDays + (needsUnloaders ? numUnloaderDays : 0);
 
   // Filter leads based on search term
   const filteredLeads = leads.filter(lead => 
@@ -612,6 +629,9 @@ function DashboardPage() {
                 gasPrice={gasPrice} setGasPrice={setGasPrice}
                 laborRate={laborRate} setLaborRate={setLaborRate}
                 needsUnloaders={needsUnloaders} setNeedsUnloaders={setNeedsUnloaders}
+                numUnloaders={numUnloaders} setNumUnloaders={setNumUnloaders}
+                numUnloaderDays={numUnloaderDays} setNumUnloaderDays={setNumUnloaderDays}
+                unloaderDailyRate={unloaderDailyRate} setUnloaderDailyRate={setUnloaderDailyRate}
                 unloadersRate={unloadersRate} setUnloadersRate={setUnloadersRate}
                 needsHotel={needsHotel} setNeedsHotel={setNeedsHotel}
                 hotelRate={hotelRate} setHotelRate={setHotelRate}
@@ -952,6 +972,12 @@ function SinglePageCalculator(
 
     needsUnloaders: boolean;
     setNeedsUnloaders: (v: boolean) => void;
+    numUnloaders: number;
+    setNumUnloaders: (v: number) => void;
+    numUnloaderDays: number;
+    setNumUnloaderDays: (v: number) => void;
+    unloaderDailyRate: number;
+    setUnloaderDailyRate: (v: number) => void;
     unloadersRate: number;
     setUnloadersRate: (v: number) => void;
 
@@ -1019,6 +1045,9 @@ function SinglePageCalculator(
     numWorkers,
     numLaborDays,
     needsUnloaders,
+    numUnloaders,        
+    numUnloaderDays,     
+    unloaderDailyRate,
     unloadersRate,
     needsPacking,
     truckDailyRate,
@@ -1060,6 +1089,9 @@ function SinglePageCalculator(
     setNumWorkers,
     setNumLaborDays,
     setNeedsUnloaders,
+    setNumUnloaders,      
+    setNumUnloaderDays,   
+    setUnloaderDailyRate,
     setUnloadersRate,
     setNeedsPacking,
     setPenskeCity,
@@ -1295,21 +1327,40 @@ function SinglePageCalculator(
             
             <div className="pt-4 border-t border-gray-100">
               <label className="flex items-center justify-between group cursor-pointer">
-                <span className="text-gray-700 font-medium">3rd Party Unloaders</span>
+                <span className="text-gray-700 font-medium">Unloaders</span>
                 <ToggleSwitch
                   checked={needsUnloaders}
                   onChange={setNeedsUnloaders}
                 />
               </label>
               {needsUnloaders && (
-                <div className="mt-3">
-                  <NumberField
-                    label="Unloaders Rate"
-                    value={unloadersRate}
-                    setValue={setUnloadersRate}
-                    icon="💵"
-                    prefix="$"
-                  />
+                <div className="mt-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <NumberField
+                      label="Unloaders"
+                      value={numUnloaders}
+                      setValue={setNumUnloaders}
+                      icon="👥"
+                      compact
+                    />
+                    <NumberField
+                      label="Days"
+                      value={numUnloaderDays}
+                      setValue={setNumUnloaderDays}
+                      icon="📅"
+                      compact
+                    />
+                  </div>
+                  <div className="mt-3">
+                    <NumberField
+                      label="Daily Rate per Person"
+                      value={unloaderDailyRate}
+                      setValue={setUnloaderDailyRate}
+                      icon="💰"
+                      prefix="$"
+                      suffix="/day"
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -1328,7 +1379,7 @@ function SinglePageCalculator(
           </div>
           <div className="p-6 space-y-4">
             <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
-              📊 Days needed auto-calculates from drive time (9 hrs = 1 day)
+              📊 Total days = Driving days (9hrs = 1 day) + Loading days + Unloading days
             </p>
             <NumberField                   
               label="Days Needed"
@@ -1420,7 +1471,7 @@ function SinglePageCalculator(
             </div>
             <div className="p-6 space-y-4">
               <label className="flex items-center justify-between group cursor-pointer">
-                <span className="text-gray-700 font-medium">Need Hotel?</span>
+                <span className="text-gray-700 font-medium">Need Hotel / Per Diem?</span>
                 <ToggleSwitch
                   checked={needsHotel}
                   onChange={setNeedsHotel}
