@@ -254,8 +254,13 @@ function DashboardPage() {
       setGpsDriveHours(Math.ceil(duration / 60));
       setNumTolls(tolls);
 
-      // Auto-calculate truck days needed based on driving hours (9 hours = 1 full day) 
-      const calculatedTruckDays = Math.ceil(Math.ceil(duration / 60) / 9);              
+
+      // Calculate adjusted hours (add 2 hours for every 6 hours of GPS time)
+      const gpsHours = Math.ceil(duration / 60);
+      const extraHours = Math.floor(gpsHours / 6) * 2;
+      const adjustedHours = gpsHours + extraHours;
+
+      const calculatedTruckDays = Math.ceil(adjustedHours / 9);                
       setTruckDaysNeeded(calculatedTruckDays);  
 
       if (moveType === 'one-way' && apName && apCode) {
@@ -390,7 +395,7 @@ function DashboardPage() {
   function calculateCost() {
     const extraHours = Math.floor(gpsDriveHours / 6) * 2;
     const adjustedDriveHours = gpsDriveHours + extraHours;
-    const drivingDays = Math.ceil(gpsDriveHours / 9);
+    const drivingDays = Math.ceil(adjustedDriveHours / 9);
     const driverRate = moveType === 'one-way' ? oneWayDriverHourly : roundTripDriverHourly;
     const driverPay = numDrivers * adjustedDriveHours * driverRate;
 
@@ -1573,10 +1578,10 @@ function SinglePageCalculator(
                 <span className="block text-gray-400">Driving Days</span>
                 <span className="font-semibold">{costs.drivingDays}</span>
               </div>
-              <div>
+              {/*<div>
                 <span className="block text-gray-400">Total Job Days</span>
                 <span className="font-semibold">{totalJobDays}</span>
-              </div>
+              </div>*/}
             </div>
             
             <button
