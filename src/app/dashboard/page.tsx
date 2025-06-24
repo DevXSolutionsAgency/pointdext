@@ -815,7 +815,7 @@ function DashboardPage() {
                         <button
                           onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
                           disabled={currentPage === 1}
-                          className="px-3 py-1 bg-gray-200 text-black rounded disabled:opacity-50"
+                          className="px-3 py-1 bg-gray-200 text-black rounded hover:bg-gray-300 disabled:opacity-50"
                         >
                           Prev
                         </button>
@@ -825,7 +825,7 @@ function DashboardPage() {
                         <button
                           onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
                           disabled={currentPage === totalPages}
-                          className="px-3 py-1 bg-gray-200 text-black rounded disabled:opacity-50"
+                          className="px-3 py-1 bg-gray-200 text-black rounded hover:bg-gray-300 disabled:opacity-50"
                         >
                           Next
                         </button>
@@ -939,7 +939,7 @@ function ViewToggle({
       className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
         isActive
           ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white shadow'
-          : 'bg-white border border-gray-300 text-black hover:bg-gray-50'
+          : 'bg-white border border-gray-300 text-black hover:bg-gray-100'
       }`}
     >
       {label}
@@ -1370,7 +1370,7 @@ function SinglePageCalculator(
                 className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
                   moveType === type
                     ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white shadow-lg transform scale-105'
-                    : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                    : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
                 }`}
               >
                 {type === 'one-way' ? '🚚 One-Way' : '🔄 Round-Trip'}
