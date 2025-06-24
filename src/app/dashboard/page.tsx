@@ -108,6 +108,125 @@ interface CostSummary {
   total:              number;
 }
 
+/* Route Selection Modal */
+function RouteSelectionModal({
+  isOpen,
+  onClose,
+  alternatives,
+  onSelect,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  alternatives: Array<{
+    index: number;
+    summary: string;
+    distance: number;
+    duration: number;
+    distanceText: string;
+    durationText: string;
+    tolls: number;
+  }>;
+  onSelect: (index: number) => void;
+}) {
+  // disable background scroll when modal is open
+  useEffect(() => {
+    document.body.style.overflow = isOpen ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className="fixed inset-0 flex items-center justify-center z-50"
+      style={{ backdropFilter: 'brightness(60%)' }}
+    >
+      <div
+        className="
+          bg-white
+          rounded-lg
+          w-full
+          max-w-2xl
+          mx-4
+          flex flex-col
+          max-h-[90vh]
+          shadow-xl
+        "
+      >
+        {/* header */}
+        <div className="p-6 border-b border-gray-200 flex-shrink-0">
+          <h2 className="text-2xl font-bold text-gray-900">Select Your Route</h2>
+          <p className="text-gray-600 mt-1">Choose the best route for your move</p>
+        </div>
+
+        {/* scrollable body */}
+        <div className="p-6 overflow-y-auto flex-1">
+          <div className="space-y-4">
+            {alternatives.map((route, idx) => (
+              <button
+                key={idx}
+                onClick={() => onSelect(route.index)}
+                className="
+                  w-full text-left p-4
+                  border-2 border-gray-200
+                  rounded-lg
+                  hover:border-blue-500 hover:bg-blue-50
+                  transition-all duration-200
+                "
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <h3 className="font-semibold text-lg text-gray-900">
+                    {route.summary || `Route ${idx + 1}`}
+                  </h3>
+                  {idx === 0 && (
+                    <span className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded">
+                      Recommended
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-500">Distance:</span>
+                    <p className="font-medium text-black">{route.distanceText}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Duration:</span>
+                    <p className="font-medium text-black">{route.durationText}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Tolls:</span>
+                    <p className="font-medium text-black">
+                      {route.tolls} toll{route.tolls !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* footer always visible */}
+        <div className="p-6 border-t border-gray-200 flex-shrink-0">
+          <button
+            onClick={onClose}
+            className="
+              w-full py-2 px-4
+              bg-gray-300 text-gray-700
+              rounded-lg
+              hover:bg-gray-400
+              transition-colors
+            "
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* Main dashboard component */
 function DashboardPage() {
   // which view is visible
@@ -197,6 +316,10 @@ function DashboardPage() {
   const [nearestAirportName, setNearestAirportName] = useState('');
   const [nearestAirportCode, setNearestAirportCode] = useState('');
 
+  const [showRouteModal, setShowRouteModal] = useState(false);
+  const [routeAlternatives, setRouteAlternatives] = useState<any[]>([]);
+  const [pendingRouteData, setPendingRouteData] = useState<any>(null);
+
   /* Load leads on mount */
   useEffect(() => {
     (async () => {
@@ -248,6 +371,7 @@ function DashboardPage() {
         stops: stops.filter(s => s.trim() !== ''),
         delivery,
         returnWarehouse: warehouseReturn,
+        selectedRouteIndex: -1,
       };
 
       const res = await fetch('/api/calculate-distance', {
@@ -262,6 +386,16 @@ function DashboardPage() {
       }
 
       const data = await res.json();
+
+      if (data.requiresSelection && data.alternatives) {
+        // Store the request data for later
+        setPendingRouteData(body);
+        setRouteAlternatives(data.alternatives);
+        setShowRouteModal(true);
+        setCalculatingRoute(false);
+        return;
+      }
+
       if (!data.success) throw new Error(data.error || 'Route calculation failed.');
 
       const { distance, duration, tolls, nearestAirportName: apName, nearestAirportCode: apCode } = data.data;
@@ -300,6 +434,67 @@ function DashboardPage() {
       toast.error(msg);
     } finally {
       setCalculatingRoute(false);
+    }
+  }
+
+  async function handleRouteSelection(routeIndex: number) {
+    setShowRouteModal(false);
+    setCalculatingRoute(true);
+
+    try {
+      const body = {
+        ...pendingRouteData,
+        selectedRouteIndex: routeIndex
+      };
+
+      const res = await fetch('/api/calculate-distance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || `Status ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Route calculation failed.');
+
+      const { distance, duration, tolls, nearestAirportName: apName, nearestAirportCode: apCode } = data.data;
+
+      setTotalMiles(Math.ceil(distance));
+      setGpsDriveHours(Math.ceil(duration / 60));
+      setNumTolls(tolls);
+
+      // Calculate adjusted hours (add 2 hours for every 6 hours of GPS time)
+      const gpsHours = Math.ceil(duration / 60);
+      const extraHours = Math.floor(gpsHours / 6) * 2;
+      const adjustedHours = gpsHours + extraHours;
+
+      const calculatedDrivingDays = Math.ceil(adjustedHours / 9);
+      const calculatedTruckDays = calculatedDrivingDays + numLaborDays + (needsUnloaders ? numUnloaderDays : 0);       
+      setTruckDaysNeeded(calculatedTruckDays);
+      setHotelNights(Math.max(0, calculatedTruckDays - 1));
+
+      if (moveType === 'one-way' && apName && apCode) {
+        setNearestAirportName(apName);
+        setNearestAirportCode(apCode);
+      } else {
+        setNearestAirportName('');
+        setNearestAirportCode('');
+      }
+
+      toast.success(
+        `Route: ${distance.toFixed(1)} miles • ${(duration / 60).toFixed(1)} hrs • ${tolls} tolls`
+      );
+    } catch (err: any) {
+      console.error(err);
+      const msg = isDevelopment ? `Route error: ${err.message}` : 'Could not calculate route.';
+      toast.error(msg);
+    } finally {
+      setCalculatingRoute(false);
+      setPendingRouteData(null);
     }
   }
 
@@ -489,6 +684,14 @@ function DashboardPage() {
     <div className="min-h-screen bg-gray-100 flex flex-col">
       {/* toast notifications go at the very top */}
       <Toaster position="top-right" />
+
+      {/* Route Selection Modal */}
+      <RouteSelectionModal
+        isOpen={showRouteModal}
+        onClose={() => setShowRouteModal(false)}
+        alternatives={routeAlternatives}
+        onSelect={handleRouteSelection}
+      />
 
       {/* header */}
       <header className="bg-white shadow-sm">
