@@ -108,6 +108,125 @@ interface CostSummary {
   total:              number;
 }
 
+/* Route Selection Modal */
+function RouteSelectionModal({
+  isOpen,
+  onClose,
+  alternatives,
+  onSelect,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  alternatives: Array<{
+    index: number;
+    summary: string;
+    distance: number;
+    duration: number;
+    distanceText: string;
+    durationText: string;
+    tolls: number;
+  }>;
+  onSelect: (index: number) => void;
+}) {
+  // disable background scroll when modal is open
+  useEffect(() => {
+    document.body.style.overflow = isOpen ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className="fixed inset-0 flex items-center justify-center z-50"
+      style={{ backdropFilter: 'brightness(60%)' }}
+    >
+      <div
+        className="
+          bg-white
+          rounded-lg
+          w-full
+          max-w-2xl
+          mx-4
+          flex flex-col
+          max-h-[90vh]
+          shadow-xl
+        "
+      >
+        {/* header */}
+        <div className="p-6 border-b border-gray-200 flex-shrink-0">
+          <h2 className="text-2xl font-bold text-gray-900">Select Your Route</h2>
+          <p className="text-gray-600 mt-1">Choose the best route for your move</p>
+        </div>
+
+        {/* scrollable body */}
+        <div className="p-6 overflow-y-auto flex-1">
+          <div className="space-y-4">
+            {alternatives.map((route, idx) => (
+              <button
+                key={idx}
+                onClick={() => onSelect(route.index)}
+                className="
+                  w-full text-left p-4
+                  border-2 border-gray-200
+                  rounded-lg
+                  hover:border-blue-500 hover:bg-blue-50
+                  transition-all duration-200
+                "
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <h3 className="font-semibold text-lg text-gray-900">
+                    {route.summary || `Route ${idx + 1}`}
+                  </h3>
+                  {idx === 0 && (
+                    <span className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded">
+                      Recommended
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-500">Distance:</span>
+                    <p className="font-medium text-black">{route.distanceText}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Duration:</span>
+                    <p className="font-medium text-black">{route.durationText}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Tolls:</span>
+                    <p className="font-medium text-black">
+                      {route.tolls} toll{route.tolls !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* footer always visible */}
+        <div className="p-6 border-t border-gray-200 flex-shrink-0">
+          <button
+            onClick={onClose}
+            className="
+              w-full py-2 px-4
+              bg-gray-300 text-gray-700
+              rounded-lg
+              hover:bg-gray-400
+              transition-colors
+            "
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* Main dashboard component */
 function DashboardPage() {
   // which view is visible
@@ -115,9 +234,12 @@ function DashboardPage() {
 
   // lead data
   const [leads, setLeads] = useState<SmartMovingLead[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [leadsPerPage, setLeadsPerPage] = useState(25); 
   const [loadingLeads, setLoadingLeads] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<SmartMovingLead | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   // loading flags for the three async actions
   const [calculatingRoute, setCalculatingRoute]   = useState(false);
@@ -138,6 +260,7 @@ function DashboardPage() {
 
   // hotel and per-diem
   const [needsHotel, setNeedsHotel] = useState(false);
+  const [hotelNights, setHotelNights] = useState(0);
   const [hotelRate, setHotelRate] = useState(150);
   const [perDiemRate, setPerDiemRate] = useState(50);
 
@@ -150,6 +273,9 @@ function DashboardPage() {
   const [numWorkers, setNumWorkers] = useState(2);
   const [numLaborDays, setNumLaborDays] = useState(1);
   const [needsUnloaders, setNeedsUnloaders] = useState(false);
+  const [numUnloaders, setNumUnloaders] = useState(2);
+  const [numUnloaderDays, setNumUnloaderDays] = useState(1);
+  const [unloaderDailyRate, setUnloaderDailyRate] = useState(300);
   const [unloadersRate, setUnloadersRate]   = useState(0);
 
   // packing
@@ -192,6 +318,10 @@ function DashboardPage() {
   const [nearestAirportName, setNearestAirportName] = useState('');
   const [nearestAirportCode, setNearestAirportCode] = useState('');
 
+  const [showRouteModal, setShowRouteModal] = useState(false);
+  const [routeAlternatives, setRouteAlternatives] = useState<any[]>([]);
+  const [pendingRouteData, setPendingRouteData] = useState<any>(null);
+
   /* Load leads on mount */
   useEffect(() => {
     (async () => {
@@ -216,6 +346,18 @@ function DashboardPage() {
     })();
   }, []);
 
+  useEffect(() => {
+    if (gpsDriveHours > 0) {  // Only update if we have calculated a route
+      const extraHours = Math.floor(gpsDriveHours / 6) * 2;
+      const adjustedHours = gpsDriveHours + extraHours;
+      const drivingDays = Math.ceil(adjustedHours / 9);
+      const newTruckDays = drivingDays + numLaborDays + (needsUnloaders ? numUnloaderDays : 0);
+      setTruckDaysNeeded(newTruckDays);
+
+      setHotelNights(Math.max(0, newTruckDays - 1));
+    }
+  }, [numLaborDays, numUnloaderDays, needsUnloaders, gpsDriveHours]);
+
   /* Route calculation */
   async function handleDistanceCalc() {
     if (!moveType || !warehouseStart || !pickup || !delivery) {
@@ -231,6 +373,80 @@ function DashboardPage() {
         stops: stops.filter(s => s.trim() !== ''),
         delivery,
         returnWarehouse: warehouseReturn,
+        selectedRouteIndex: -1,
+      };
+
+      const res = await fetch('/api/calculate-distance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || `Status ${res.status}`);
+      }
+
+      const data = await res.json();
+
+      if (data.requiresSelection && data.alternatives) {
+        // Store the request data for later
+        setPendingRouteData(body);
+        setRouteAlternatives(data.alternatives);
+        setShowRouteModal(true);
+        setCalculatingRoute(false);
+        return;
+      }
+
+      if (!data.success) throw new Error(data.error || 'Route calculation failed.');
+
+      const { distance, duration, tolls, nearestAirportName: apName, nearestAirportCode: apCode } = data.data;
+
+      setTotalMiles(Math.ceil(distance));
+      setGpsDriveHours(Math.ceil(duration / 60));
+      setNumTolls(tolls);
+
+
+      // Calculate adjusted hours (add 2 hours for every 6 hours of GPS time)
+      const gpsHours = Math.ceil(duration / 60);
+      const extraHours = Math.floor(gpsHours / 6) * 2;
+      const adjustedHours = gpsHours + extraHours;
+
+      const calculatedDrivingDays = Math.ceil(adjustedHours / 9);
+      // Calculate total truck days: driving days + current labor days + current unloader days
+      const calculatedTruckDays = calculatedDrivingDays + numLaborDays + (needsUnloaders ? numUnloaderDays : 0);       
+      setTruckDaysNeeded(calculatedTruckDays);  
+
+      setHotelNights(Math.max(0, calculatedTruckDays - 1));
+
+      if (moveType === 'one-way' && apName && apCode) {
+        setNearestAirportName(apName);
+        setNearestAirportCode(apCode);
+      } else {
+        setNearestAirportName('');
+        setNearestAirportCode('');
+      }
+
+      toast.success(
+        `Route: ${distance.toFixed(1)} miles • ${(duration / 60).toFixed(1)} hrs • ${tolls} tolls`
+      );
+    } catch (err: any) {
+      console.error(err);
+      const msg = isDevelopment ? `Route error: ${err.message}` : 'Could not calculate route.';
+      toast.error(msg);
+    } finally {
+      setCalculatingRoute(false);
+    }
+  }
+
+  async function handleRouteSelection(routeIndex: number) {
+    setShowRouteModal(false);
+    setCalculatingRoute(true);
+
+    try {
+      const body = {
+        ...pendingRouteData,
+        selectedRouteIndex: routeIndex
       };
 
       const res = await fetch('/api/calculate-distance', {
@@ -253,9 +469,15 @@ function DashboardPage() {
       setGpsDriveHours(Math.ceil(duration / 60));
       setNumTolls(tolls);
 
-      // Auto-calculate truck days needed based on driving hours (9 hours = 1 full day) 
-      const calculatedTruckDays = Math.ceil(Math.ceil(duration / 60) / 9);              
-      setTruckDaysNeeded(calculatedTruckDays);  
+      // Calculate adjusted hours (add 2 hours for every 6 hours of GPS time)
+      const gpsHours = Math.ceil(duration / 60);
+      const extraHours = Math.floor(gpsHours / 6) * 2;
+      const adjustedHours = gpsHours + extraHours;
+
+      const calculatedDrivingDays = Math.ceil(adjustedHours / 9);
+      const calculatedTruckDays = calculatedDrivingDays + numLaborDays + (needsUnloaders ? numUnloaderDays : 0);       
+      setTruckDaysNeeded(calculatedTruckDays);
+      setHotelNights(Math.max(0, calculatedTruckDays - 1));
 
       if (moveType === 'one-way' && apName && apCode) {
         setNearestAirportName(apName);
@@ -274,6 +496,7 @@ function DashboardPage() {
       toast.error(msg);
     } finally {
       setCalculatingRoute(false);
+      setPendingRouteData(null);
     }
   }
 
@@ -389,19 +612,21 @@ function DashboardPage() {
   function calculateCost() {
     const extraHours = Math.floor(gpsDriveHours / 6) * 2;
     const adjustedDriveHours = gpsDriveHours + extraHours;
-    const drivingDays = Math.ceil(gpsDriveHours / 9);
+    const drivingDays = Math.ceil(adjustedDriveHours / 9);
     const driverRate = moveType === 'one-way' ? oneWayDriverHourly : roundTripDriverHourly;
     const driverPay = numDrivers * adjustedDriveHours * driverRate;
 
     const gallons = totalMiles / 5;
     const fuelCost = gallons * gasPrice;
-    const laborCost =
-      numWorkers * numLaborDays * laborRate + (needsUnloaders ? unloadersRate : 0);
+    // Updated labor cost calculation
+    const loadersCost = numWorkers * numLaborDays * laborRate;
+    const unloadersCost = needsUnloaders ? (numUnloaders * numUnloaderDays * unloaderDailyRate) : 0;
+    const laborCost = loadersCost + unloadersCost;
 
     let hotelCost = 0;
     let perDiemCost = 0;
     if (needsHotel) {
-      hotelCost = drivingDays * hotelRate;
+      hotelCost = hotelNights * hotelRate;
       perDiemCost = drivingDays * perDiemRate;
     }
 
@@ -447,13 +672,33 @@ function DashboardPage() {
   }
 
   const costs = calculateCost();
-  const totalJobDays = truckDaysNeeded;
+  const totalJobDays = costs.drivingDays + numLaborDays + (needsUnloaders ? numUnloaderDays : 0);
+
+  // Filter leads based on search term
+  const filteredLeads = leads.filter(lead => 
+    lead.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (!searchTerm.trim())
+  );
+
+  const totalPages = Math.ceil(filteredLeads.length / leadsPerPage);
+  const paginatedLeads = filteredLeads.slice(
+    (currentPage - 1) * leadsPerPage,
+    currentPage * leadsPerPage
+  );
 
   /* Render */
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
       {/* toast notifications go at the very top */}
       <Toaster position="top-right" />
+
+      {/* Route Selection Modal */}
+      <RouteSelectionModal
+        isOpen={showRouteModal}
+        onClose={() => setShowRouteModal(false)}
+        alternatives={routeAlternatives}
+        onSelect={handleRouteSelection}
+      />
 
       {/* header */}
       <header className="bg-white shadow-sm">
@@ -476,10 +721,33 @@ function DashboardPage() {
       {/* main content */}
       <main className="flex-1 overflow-auto p-4">
         <div className={view === 'split' ? 'grid grid-cols-1 lg:grid-cols-2 gap-6 h-full' : 'h-full'}>
-          {/*  leads panel  */}
+          
+          {/* ── Leads panel ─────────────────────────────────────────────── */}
           {(view === 'split' || view === 'leads') && (
             <div className="bg-white p-4 rounded-md shadow flex flex-col h-full">
-              <h2 className="text-xl font-bold text-black mb-4">Leads</h2>
+              
+              {/* header: title + search only */}
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-black">Leads</h2>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search by customer name..."
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    className="pl-10 pr-4 py-2 border border-gray-400 rounded-lg text-sm text-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-64"
+                  />
+                  <svg
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+              </div>
 
               {loadingLeads ? (
                 <p className="text-black">Loading leads…</p>
@@ -488,6 +756,8 @@ function DashboardPage() {
               ) : (
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <div className="shadow ring-1 ring-gray-200 md:rounded-lg">
+                    
+                    {/* table */}
                     <table className="min-w-full table-fixed divide-y divide-gray-200 text-sm">
                       <colgroup>
                         <col className="w-40" />
@@ -495,30 +765,18 @@ function DashboardPage() {
                         <col className="w-60" />
                         <col className="w-28" />
                       </colgroup>
-
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                            Name
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                            Origin
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                            Destination
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                            Actions
-                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Name</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Origin</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Destination</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
                         </tr>
                       </thead>
-
                       <tbody className="divide-y divide-gray-200 bg-white">
-                        {leads.map((lead) => (
+                        {paginatedLeads.map(lead => (
                           <tr key={lead.id} className="hover:bg-gray-50 transition-colors">
-                            <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-900">
-                              {lead.customerName ?? 'N/A'}
-                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-900">{lead.customerName ?? 'N/A'}</td>
                             <td className="px-4 py-3 text-gray-700">{lead.originAddressFull ?? 'N/A'}</td>
                             <td className="px-4 py-3 text-gray-700">{lead.destinationAddressFull ?? 'N/A'}</td>
                             <td className="px-4 py-3">
@@ -532,6 +790,14 @@ function DashboardPage() {
                           </tr>
                         ))}
 
+                        {filteredLeads.length > 0 && paginatedLeads.length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
+                              No leads on this page
+                            </td>
+                          </tr>
+                        )}
+
                         {leads.length === 0 && (
                           <tr>
                             <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
@@ -541,6 +807,46 @@ function DashboardPage() {
                         )}
                       </tbody>
                     </table>
+
+                    {/* pagination + page-size selector */}
+                    <div className="flex items-center justify-between py-4">
+                      {/* Prev / Next */}
+                      <div className="flex items-center space-x-4">
+                        <button
+                          onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                          disabled={currentPage === 1}
+                          className="px-3 py-1 bg-gray-200 text-black rounded hover:bg-gray-300 disabled:opacity-50"
+                        >
+                          Prev
+                        </button>
+                        <span className="text-sm text-black">
+                          Page {currentPage} of {totalPages}
+                        </span>
+                        <button
+                          onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                          disabled={currentPage === totalPages}
+                          className="px-3 py-1 bg-gray-200 text-black rounded hover:bg-gray-300 disabled:opacity-50"
+                        >
+                          Next
+                        </button>
+                      </div>
+                      {/* Leads per page */}
+                      <label className="flex items-center space-x-2 text-sm text-black">
+                        <span>Leads per page:</span>
+                        <select
+                          value={leadsPerPage}
+                          onChange={e => {
+                            setLeadsPerPage(+e.target.value);
+                            setCurrentPage(1);
+                          }}
+                          className="border rounded px-2 py-1 text-black"
+                        >
+                          {[10, 25, 50, 100].map(n => (
+                            <option key={n} value={n}>{n}</option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
                   </div>
                 </div>
               )}
@@ -567,8 +873,12 @@ function DashboardPage() {
                 gasPrice={gasPrice} setGasPrice={setGasPrice}
                 laborRate={laborRate} setLaborRate={setLaborRate}
                 needsUnloaders={needsUnloaders} setNeedsUnloaders={setNeedsUnloaders}
+                numUnloaders={numUnloaders} setNumUnloaders={setNumUnloaders}
+                numUnloaderDays={numUnloaderDays} setNumUnloaderDays={setNumUnloaderDays}
+                unloaderDailyRate={unloaderDailyRate} setUnloaderDailyRate={setUnloaderDailyRate}
                 unloadersRate={unloadersRate} setUnloadersRate={setUnloadersRate}
                 needsHotel={needsHotel} setNeedsHotel={setNeedsHotel}
+                hotelNights={hotelNights} setHotelNights={setHotelNights}
                 hotelRate={hotelRate} setHotelRate={setHotelRate}
                 perDiemRate={perDiemRate} setPerDiemRate={setPerDiemRate}
                 oneWayDriverHourly={oneWayDriverHourly} setOneWayDriverHourly={setOneWayDriverHourly}
@@ -629,7 +939,7 @@ function ViewToggle({
       className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
         isActive
           ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white shadow'
-          : 'bg-white border border-gray-300 text-black hover:bg-gray-50'
+          : 'bg-white border border-gray-300 text-black hover:bg-gray-100'
       }`}
     >
       {label}
@@ -676,6 +986,7 @@ function PackingItemRow({
             type="number"
             className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1 text-sm text-black focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
             value={localQuantity}
+            onWheel={(e) => e.currentTarget.blur()}
             onChange={(e) => {
               const raw = e.target.value;
               setLocalQuantity(raw);
@@ -890,6 +1201,8 @@ function SinglePageCalculator(
     setNeedsHotel: (v: boolean) => void;
     hotelRate: number;
     setHotelRate: (v: number) => void;
+    hotelNights: number;
+    setHotelNights: (v: number) => void;
     perDiemRate: number;
     setPerDiemRate: (v: number) => void;
 
@@ -907,6 +1220,12 @@ function SinglePageCalculator(
 
     needsUnloaders: boolean;
     setNeedsUnloaders: (v: boolean) => void;
+    numUnloaders: number;
+    setNumUnloaders: (v: number) => void;
+    numUnloaderDays: number;
+    setNumUnloaderDays: (v: number) => void;
+    unloaderDailyRate: number;
+    setUnloaderDailyRate: (v: number) => void;
     unloadersRate: number;
     setUnloadersRate: (v: number) => void;
 
@@ -966,6 +1285,7 @@ function SinglePageCalculator(
     gasPrice,
     laborRate,
     needsHotel,
+    hotelNights,
     hotelRate,
     perDiemRate,
     oneWayDriverHourly,
@@ -974,6 +1294,9 @@ function SinglePageCalculator(
     numWorkers,
     numLaborDays,
     needsUnloaders,
+    numUnloaders,        
+    numUnloaderDays,     
+    unloaderDailyRate,
     unloadersRate,
     needsPacking,
     truckDailyRate,
@@ -1007,6 +1330,7 @@ function SinglePageCalculator(
     setGasPrice,
     setLaborRate,
     setNeedsHotel,
+    setHotelNights,
     setHotelRate,
     setPerDiemRate,
     setOneWayDriverHourly,
@@ -1015,6 +1339,9 @@ function SinglePageCalculator(
     setNumWorkers,
     setNumLaborDays,
     setNeedsUnloaders,
+    setNumUnloaders,      
+    setNumUnloaderDays,   
+    setUnloaderDailyRate,
     setUnloadersRate,
     setNeedsPacking,
     setPenskeCity,
@@ -1043,7 +1370,7 @@ function SinglePageCalculator(
                 className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
                   moveType === type
                     ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white shadow-lg transform scale-105'
-                    : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                    : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
                 }`}
               >
                 {type === 'one-way' ? '🚚 One-Way' : '🔄 Round-Trip'}
@@ -1250,21 +1577,40 @@ function SinglePageCalculator(
             
             <div className="pt-4 border-t border-gray-100">
               <label className="flex items-center justify-between group cursor-pointer">
-                <span className="text-gray-700 font-medium">3rd Party Unloaders</span>
+                <span className="text-gray-700 font-medium">Unloaders</span>
                 <ToggleSwitch
                   checked={needsUnloaders}
                   onChange={setNeedsUnloaders}
                 />
               </label>
               {needsUnloaders && (
-                <div className="mt-3">
-                  <NumberField
-                    label="Unloaders Rate"
-                    value={unloadersRate}
-                    setValue={setUnloadersRate}
-                    icon="💵"
-                    prefix="$"
-                  />
+                <div className="mt-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <NumberField
+                      label="Unloaders"
+                      value={numUnloaders}
+                      setValue={setNumUnloaders}
+                      icon="👥"
+                      compact
+                    />
+                    <NumberField
+                      label="Days"
+                      value={numUnloaderDays}
+                      setValue={setNumUnloaderDays}
+                      icon="📅"
+                      compact
+                    />
+                  </div>
+                  <div className="mt-3">
+                    <NumberField
+                      label="Daily Rate per Person"
+                      value={unloaderDailyRate}
+                      setValue={setUnloaderDailyRate}
+                      icon="💰"
+                      prefix="$"
+                      suffix="/day"
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -1283,7 +1629,7 @@ function SinglePageCalculator(
           </div>
           <div className="p-6 space-y-4">
             <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
-              📊 Days needed auto-calculates from drive time (9 hrs = 1 day)
+              📊 Total days = Driving days (9hrs = 1 day) + Loading days + Unloading days
             </p>
             <NumberField                   
               label="Days Needed"
@@ -1375,7 +1721,7 @@ function SinglePageCalculator(
             </div>
             <div className="p-6 space-y-4">
               <label className="flex items-center justify-between group cursor-pointer">
-                <span className="text-gray-700 font-medium">Need Hotel?</span>
+                <span className="text-gray-700 font-medium">Need Hotel / Per Diem?</span>
                 <ToggleSwitch
                   checked={needsHotel}
                   onChange={setNeedsHotel}
@@ -1383,6 +1729,13 @@ function SinglePageCalculator(
               </label>
               {needsHotel && (
                 <div className="space-y-4 mt-4">
+                  <NumberField
+                    label="Number of Nights"
+                    value={hotelNights}
+                    setValue={setHotelNights}
+                    icon="🌙"
+                    suffix="nights"
+                  />
                   <NumberField
                     label="Hotel Rate"
                     value={hotelRate}
@@ -1466,6 +1819,13 @@ function SinglePageCalculator(
               {needsHotel && (
                 <div className="space-y-4 mt-4">
                   <NumberField
+                    label="Number of Nights"
+                    value={hotelNights}
+                    setValue={setHotelNights}
+                    icon="🌙"
+                    suffix="nights"
+                  />
+                  <NumberField
                     label="Hotel Rate"
                     value={hotelRate}
                     setValue={setHotelRate}
@@ -1533,10 +1893,10 @@ function SinglePageCalculator(
                 <span className="block text-gray-400">Driving Days</span>
                 <span className="font-semibold">{costs.drivingDays}</span>
               </div>
-              <div>
+              {/*<div>
                 <span className="block text-gray-400">Total Job Days</span>
                 <span className="font-semibold">{totalJobDays}</span>
-              </div>
+              </div>*/}
             </div>
             
             <button
