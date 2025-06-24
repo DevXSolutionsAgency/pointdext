@@ -3,9 +3,16 @@ import axios from 'axios';
 
 /* 1 ▸ TYPES */
 interface Coord { lat: number; lng: number; }
+interface Route {
+  legs: Array<{ 
+    distance: { value: number; text: string }; 
+    duration: { value: number; text: string };
+    steps: Array<{ html_instructions: string }> 
+  }>;
+  summary: string;
+}
 interface DirectionsResponse {
-  routes: Array<{ legs: Array<{ distance:{ value:number }; duration:{ value:number };
-                                 steps:Array<{ html_instructions:string }> }> }>;
+  routes: Route[];
   status: string;
 }
 interface GeocodeResponse {
@@ -31,18 +38,35 @@ async function geocode(addr: string): Promise<Coord> {
   return data.results[0].geometry.location;
 }
 
-async function directions(a: Coord, b: Coord) {
+async function directions(a: Coord, b: Coord, getAlternatives = false) {
   const { data } = await axios.get<DirectionsResponse>(
     'https://maps.googleapis.com/maps/api/directions/json',
-    { params: { origin:`${a.lat},${a.lng}`, destination:`${b.lat},${b.lng}`, key:GOOGLE_MAPS_API_KEY } }
+    { 
+      params: { 
+        origin: `${a.lat},${a.lng}`, 
+        destination: `${b.lat},${b.lng}`, 
+        key: GOOGLE_MAPS_API_KEY,
+        alternatives: getAlternatives // Enable alternatives
+      } 
+    }
   );
   if (data.status !== 'OK' || !data.routes.length)
     throw new Error(`Directions failed (${data.status})`);
-  const leg = data.routes[0].legs[0];
-  const miles   = leg.distance.value / 1609.34;
-  const minutes = leg.duration.value / 60;
-  const tolls   = leg.steps.filter(s => s.html_instructions.toLowerCase().includes('toll')).length;
-  return { miles, minutes, tolls };
+  
+  return data.routes.map(route => {
+    const leg = route.legs[0];
+    const miles = leg.distance.value / 1609.34;
+    const minutes = leg.duration.value / 60;
+    const tolls = leg.steps.filter(s => s.html_instructions.toLowerCase().includes('toll')).length;
+    return { 
+      miles, 
+      minutes, 
+      tolls,
+      summary: route.summary || 'Main Route',
+      distanceText: leg.distance.text,
+      durationText: leg.duration.text
+    };
+  });
 }
 
 /* 4 ▸ AMADEUS */
@@ -98,7 +122,8 @@ export async function POST(req: Request) {
       pickup,
       stops = [],          
       delivery,
-      returnWarehouse
+      returnWarehouse,
+      selectedRouteIndex = 0  // Add this to handle route selection
     } = await req.json();
 
     if (!moveType || !warehouse || !pickup || !delivery) {
@@ -124,13 +149,37 @@ export async function POST(req: Request) {
       points.push(await geocode((returnWarehouse || warehouse).trim()));
     }
 
-    /* ▸ Aggregate distances */
+    /* ▸ Get alternatives for the first segment to show options */
+    let alternativeRoutes = [];
+    if (points.length >= 2 && selectedRouteIndex === -1) {
+      // Only get alternatives for initial calculation
+      const routes = await directions(points[0], points[1], true);
+      alternativeRoutes = routes.map((route, index) => ({
+        index,
+        summary: route.summary,
+        distance: route.miles,
+        duration: route.minutes,
+        distanceText: route.distanceText,
+        durationText: route.durationText,
+        tolls: route.tolls
+      }));
+      
+      // Return alternatives for user selection
+      return NextResponse.json({
+        success: true,
+        requiresSelection: true,
+        alternatives: alternativeRoutes
+      });
+    }
+
+    /* ▸ Calculate full route with selected option */
     let miles = 0, minutes = 0, tolls = 0;
     for (let i = 0; i < points.length - 1; i++) {
-      const seg = await directions(points[i], points[i + 1]);
-      miles   += seg.miles;
-      minutes += seg.minutes;
-      tolls   += seg.tolls;
+      const routes = await directions(points[i], points[i + 1], i === 0);
+      const selectedRoute = i === 0 && routes[selectedRouteIndex] ? routes[selectedRouteIndex] : routes[0];
+      miles   += selectedRoute.miles;
+      minutes += selectedRoute.minutes;
+      tolls   += selectedRoute.tolls;
     }
 
     /* ▸ Airport (one-way) */
