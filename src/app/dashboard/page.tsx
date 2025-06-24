@@ -741,6 +741,7 @@ function PackingItemRow({
             type="number"
             className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1 text-sm text-black focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
             value={localQuantity}
+            onWheel={(e) => e.currentTarget.blur()}
             onChange={(e) => {
               const raw = e.target.value;
               setLocalQuantity(raw);
