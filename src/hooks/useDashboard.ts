@@ -344,7 +344,16 @@ export function useDashboard() {
       }
 
       const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Amadeus error');
+      if (!data.success) {
+        if (
+          data.error &&
+          data.error.includes('Origin and destination airports are the same')
+        ) {
+          toast.success(data.error); // or toast.info
+          return;
+        }
+        throw new Error(data.error || 'Amadeus error');
+      }
 
       const { flightPrice, airline, departTime } = data;   
       setFlightTicketRate(flightPrice);                    

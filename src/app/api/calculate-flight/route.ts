@@ -43,6 +43,17 @@ export async function POST(request: Request) {
       );
     }
 
+    // If origin and destination are the same (PHX), return a user-friendly error
+    if (originAirport === 'PHX') {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Origin and destination airports are the same. No flight needed. You can fly out of the same location/state.'
+        },
+        { status: 200 }
+      );
+    }
+
     /* 2) credentials */
     const clientId     = process.env.AMADEUS_CLIENT_ID;
     const clientSecret = process.env.AMADEUS_CLIENT_SECRET;
